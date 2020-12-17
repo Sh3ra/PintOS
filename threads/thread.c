@@ -19,7 +19,7 @@
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
-
+#define MAX_DEPTH 10
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -237,7 +237,10 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered(&ready_list,&t->elem, &more_priority_cmp, NULL);
+  if (t->priority > thread_get_priority()) {
+    thread_yield();
+  }
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -308,7 +311,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread)
-    list_push_back (&ready_list, &cur->elem);
+        list_insert_ordered(&ready_list,&cur->elem, &more_priority_cmp, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -331,18 +334,54 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+/* comparator for inserting elements in sorted list descendingly by priority*/
+bool more_priority_cmp(const struct list_elem* a, const struct list_elem* b, void* aux UNUSED){
+  struct thread* t1 = list_entry(a, struct thread, elem);
+  struct thread* t2 = list_entry(b, struct thread, elem);
+  return t1->priority > t2->priority;
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority)
 {
   thread_current ()->priority = new_priority;
+  struct thread * t;
+  if (!list_empty(&ready_list) &&  (t = list_entry(list_front(&ready_list), struct thread, elem))->priority > thread_get_priority() && t != NULL) {
+    thread_yield();
+  }
 }
+
+int max(int a, int b){
+    return a>b? a:b;
+}
+
+int complete_search(struct thread * t, int depth) {
+      if(depth >= MAX_DEPTH) return -1;
+      int max_priority = 0;
+      for(struct list_elem* iter = list_begin(&t->locks);
+        iter != list_end(&t->locks);
+        iter = list_next(iter)) {
+        struct lock * l = list_entry (iter, struct lock, lock_elem);
+        struct list waiters = l->semaphore.waiters;
+        for(struct list_elem* waiter_iter = list_begin(&waiters);
+          waiter_iter != list_end(&waiters);
+          waiter_iter = list_next(iter)) {
+          struct thread * new_t = list_entry (waiter_iter,  struct thread, elem);
+          max_priority = max(max_priority, complete_search(new_t,depth+1));
+        }
+      }
+      return max_priority;
+}
+
 
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void)
 {
-  return thread_current ()->priority;
+  int curr_priority = thread_current()->priority;
+  //curr_priority = max(curr_priority, complete_search(thread_current(), 0));
+  return curr_priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
