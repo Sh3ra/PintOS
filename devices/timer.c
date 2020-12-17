@@ -88,6 +88,10 @@ timer_elapsed (int64_t then)
 bool less_time_cmp(const struct list_elem* a, const struct list_elem* b, void* aux UNUSED){
   struct thread* t1 = list_entry(a, struct thread, sleeping_elem);
   struct thread* t2 = list_entry(b, struct thread, sleeping_elem);
+  if(t1->time_to_wake_up_snow_white == t2->time_to_wake_up_snow_white)
+  {
+    return t1->priority > t2->priority;
+  }
   return t1->time_to_wake_up_snow_white < t2->time_to_wake_up_snow_white;
 }
 
