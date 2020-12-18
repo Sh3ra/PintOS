@@ -184,17 +184,6 @@ lock_init (struct lock *lock)
 
 
 void
-check_for_donation(struct lock * lock) {
-  struct thread * t = lock->holder;
-  if (t != NULL) {
-    struct thread * t_curr = thread_current();
-    donate(t, get_priority_of_specific_thread(t_curr), 0);
-    t_curr->blocking_lock = lock;
-    lock->donation = max(lock->donation, get_priority_of_specific_thread(t_curr));
-  }
-}
-
-void
 donate(struct thread *t, int priority, int depth) {
   if(depth == MAX_DEPTH) return;
   if(get_priority_of_specific_thread(t) >= priority) return;
@@ -205,12 +194,26 @@ donate(struct thread *t, int priority, int depth) {
       if(priority <= curr_lock->donation) return;
       curr_lock->donation = max(curr_lock->donation, priority);
       donate(curr_lock->holder, priority, depth+1);
-      reinsert_thread_in_list(curr_lock->holder, curr_lock->semaphore.waiters);
+      reinsert_thread_in_list(curr_lock->holder, &curr_lock->semaphore.waiters);
     }
   } else {
-    reinsert_thread_in_list(t, &ready_list);
+      reinsert_thread_in_list(t, &ready_list);
   }
 }
+
+
+void
+check_for_donation(struct lock * lock) {
+  struct thread * t = lock->holder;
+  if (t != NULL) {
+    struct thread * t_curr = thread_current();
+    donate(t, get_priority_of_specific_thread(t_curr), 0);
+    t_curr->blocking_lock = lock;
+    lock->donation = max(lock->donation, get_priority_of_specific_thread(t_curr));
+  }
+}
+
+
 
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current
@@ -227,7 +230,7 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
-  //check_for_donation(lock);
+  check_for_donation(lock);
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
   lock->donation = 0;
@@ -267,13 +270,11 @@ lock_release (struct lock *lock)
   //get_current_donation();
   lock->holder = NULL;
   lock->donation = 0;
-
   sema_up (&lock->semaphore);
 }
 
 void get_current_donation() {
   int max_donation = 0;
-  if(!list_empty(&locks))
   for(struct list_elem * iter = list_begin(&locks);
       iter != list_end(&locks);
       iter = list_next(iter))
