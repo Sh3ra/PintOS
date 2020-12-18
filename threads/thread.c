@@ -19,14 +19,13 @@
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
-#define MAX_DEPTH 4
-/* List of processes in THREAD_READY state, that is, processes
-   that are ready to run but not actually running. */
-static struct list ready_list;
+
+
 
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
+
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -255,6 +254,15 @@ thread_name (void)
   return thread_current ()->name;
 }
 
+
+/*changes the current thread donated_priority and inserts it */
+void
+reinsert_thread_in_list(struct thread *t, struct list * l) {
+  list_remove(&t->elem);
+  list_insert_ordered(l, &t->elem, &more_priority_cmp, NULL);
+}
+
+
 /* Returns the running thread.
    This is running_thread() plus a couple of sanity checks.
    See the big comment at the top of thread.h for details. */
@@ -341,7 +349,7 @@ thread_foreach (thread_action_func *func, void *aux)
 bool more_priority_cmp(const struct list_elem* a, const struct list_elem* b, void* aux UNUSED){
   struct thread* t1 = list_entry(a, struct thread, elem);
   struct thread* t2 = list_entry(b, struct thread, elem);
-  return t1->priority > t2->priority;
+  return get_priority_of_specific_thread(t1) > get_priority_of_specific_thread(t2);
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
@@ -363,36 +371,11 @@ int get_priority_of_specific_thread(struct thread * t) {
     return max(t->priority, t->donated_priority);
 }
 
-int complete_search(struct thread * t, int depth) {
-      if(depth == MAX_DEPTH) return -1;
-      int max_priority = 0;
-      for(struct list_elem * iter = list_begin(&ready_list);
-        iter != list_end(&ready_list);
-        iter = list_next(iter))
-      {
-      /*struct lock * l = list_entry (iter, struct lock, lock_elem);
-        struct list * waiters = &l->semaphore.waiters;
-        for(struct list_elem * waiter_iter = list_begin(waiters);
-          waiter_iter != list_end(waiters);
-          waiter_iter = list_next(waiter_iter))
-        {
-          struct thread * new_t = list_entry (waiter_iter,  struct thread, elem);
-          printf("priority is %d\n" , new_t->priority);
-          max_priority = max(max_priority, new_t->priority);
-          max_priority = max(max_priority, complete_search(new_t,depth+1));
-        }*/
-      }
-      return max_priority;
-}
-
-
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void)
 {
-  int curr_priority = thread_current()->priority;
-  curr_priority = max(curr_priority, complete_search(thread_current(), 0));
-  return curr_priority;
+  return get_priority_of_specific_thread(thread_current());
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -514,7 +497,6 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-  list_init(&t->locks);
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
