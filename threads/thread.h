@@ -4,7 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
-
+#define DEBUG 1
 struct list sleeping_threads;
 
 /* States in a thread's life cycle. */
@@ -92,7 +92,7 @@ struct thread
     int priority;                       /* Priority. */
     int64_t time_to_wake_up_snow_white;
     struct list locks;
-    
+
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */

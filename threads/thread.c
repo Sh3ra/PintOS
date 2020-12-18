@@ -238,11 +238,13 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
   list_insert_ordered(&ready_list,&t->elem, &more_priority_cmp, NULL);
+  t->status = THREAD_READY;
+  //printf("Priority of curr thread and running %d %d\n",t->priority, thread_get_priority() );
+  intr_set_level (old_level);
   if (t->priority > thread_get_priority()) {
+    return ;
     thread_yield();
   }
-  t->status = THREAD_READY;
-  intr_set_level (old_level);
 }
 
 /* Returns the name of the running thread. */
@@ -503,6 +505,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
+  list_init(&t->locks);
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
