@@ -81,6 +81,7 @@ int complete_search(struct thread * t, int depth);
 
    After calling this function, be sure to initialize the page
    allocator before trying to create any threads with
+     list_init (&locks);
    thread_create().
 
    It is not safe to call thread_current() until this function
@@ -89,8 +90,8 @@ void
 thread_init (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
-
   lock_init (&tid_lock);
+  list_init (&locks);
   list_init (&ready_list);
   list_init (&all_list);
   list_init (&sleeping_threads);

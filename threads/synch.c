@@ -176,10 +176,10 @@ void
 lock_init (struct lock *lock)
 {
   ASSERT (lock != NULL);
-  list_init (&locks);
   lock->holder = NULL;
   sema_init (&lock->semaphore, 1);
-  list_push_back(&locks, &lock->lock_elem);
+  if(locks.head.next == &locks.tail)
+    list_push_back(&locks, &lock->lock_elem);
 }
 
 
@@ -262,29 +262,32 @@ lock_try_acquire (struct lock *lock)
    An interrupt handler cannot acquire a lock, so it does not
    make sense to try to release a lock within an interrupt
    handler. */
+
+void get_current_donation() {
+ int max_donation = 0;
+ for(struct list_elem * iter = list_begin(&locks);
+     iter != list_end(&locks);
+     iter = list_next(iter))
+ {
+   struct lock * curr_lock = list_entry(iter, struct lock, lock_elem);
+   if(curr_lock->holder == thread_current())
+     max_donation = max(curr_lock->donation, max_donation);
+ }
+ thread_current()->donated_priority = max_donation;
+}
+
 void
 lock_release (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
-  //get_current_donation();
+  get_current_donation();
   lock->holder = NULL;
   lock->donation = 0;
   sema_up (&lock->semaphore);
 }
 
-void get_current_donation() {
-  int max_donation = 0;
-  for(struct list_elem * iter = list_begin(&locks);
-      iter != list_end(&locks);
-      iter = list_next(iter))
-  {
-    struct lock * curr_lock = list_entry(iter, struct lock, lock_elem);
-    if(curr_lock->holder == thread_current())
-      max_donation = max(curr_lock->donation, max_donation);
-  }
-  thread_current()->donated_priority = max_donation;
-}
+
 
 /* Returns true if the current thread holds LOCK, false
    otherwise.  (Note that testing whether some other thread holds
