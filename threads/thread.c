@@ -70,7 +70,9 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-
+int max(int a, int b);
+int get_priority_of_specific_thread(struct thread * t);
+int complete_search(struct thread * t, int depth);
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -357,15 +359,18 @@ int max(int a, int b){
     return a>b? a:b;
 }
 
+int get_priority_of_specific_thread(struct thread * t) {
+    return max(t->priority, t->donated_priority);
+}
 
 int complete_search(struct thread * t, int depth) {
       if(depth == MAX_DEPTH) return -1;
       int max_priority = 0;
-      for(struct list_elem * iter = list_begin(&t->locks);
-        iter != list_end(&t->locks);
+      for(struct list_elem * iter = list_begin(&ready_list);
+        iter != list_end(&ready_list);
         iter = list_next(iter))
       {
-        struct lock * l = list_entry (iter, struct lock, lock_elem);
+      /*struct lock * l = list_entry (iter, struct lock, lock_elem);
         struct list * waiters = &l->semaphore.waiters;
         for(struct list_elem * waiter_iter = list_begin(waiters);
           waiter_iter != list_end(waiters);
@@ -373,9 +378,9 @@ int complete_search(struct thread * t, int depth) {
         {
           struct thread * new_t = list_entry (waiter_iter,  struct thread, elem);
           printf("priority is %d\n" , new_t->priority);
-          //max_priority = max(max_priority, new_t->priority);
+          max_priority = max(max_priority, new_t->priority);
           max_priority = max(max_priority, complete_search(new_t,depth+1));
-        }
+        }*/
       }
       return max_priority;
 }
@@ -386,7 +391,7 @@ int
 thread_get_priority (void)
 {
   int curr_priority = thread_current()->priority;
-  //curr_priority = max(curr_priority, complete_search(thread_current(), 0));
+  curr_priority = max(curr_priority, complete_search(thread_current(), 0));
   return curr_priority;
 }
 

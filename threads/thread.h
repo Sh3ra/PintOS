@@ -90,6 +90,7 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
+    int donated_priority;
     int64_t time_to_wake_up_snow_white;
     struct list locks;
 
@@ -138,7 +139,9 @@ typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
 bool more_priority_cmp(const struct list_elem* a, const struct list_elem* b, void* aux UNUSED);
-
+int max(int a, int b);
+int get_priority_of_specific_thread(struct thread * t);
+int complete_search(struct thread * t, int depth);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
