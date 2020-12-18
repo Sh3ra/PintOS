@@ -179,7 +179,10 @@ lock_init (struct lock *lock)
   list_init (&locks);
   lock->holder = NULL;
   sema_init (&lock->semaphore, 1);
+  enum intr_level old_level;
+  old_level = intr_disable ();
   list_push_back(&locks, &lock->lock_elem);
+  intr_set_level (old_level);
 }
 
 
@@ -267,7 +270,7 @@ lock_release (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
-  //get_current_donation();
+  get_current_donation();
   lock->holder = NULL;
   lock->donation = 0;
   sema_up (&lock->semaphore);
@@ -275,10 +278,13 @@ lock_release (struct lock *lock)
 
 void get_current_donation() {
   int max_donation = 0;
+  list_init(&locks);
   for(struct list_elem * iter = list_begin(&locks);
       iter != list_end(&locks);
       iter = list_next(iter))
   {
+    if(list_next(iter)==list_end(&locks))
+      break;
     struct lock * curr_lock = list_entry(iter, struct lock, lock_elem);
     if(curr_lock->holder == thread_current())
       max_donation = max(curr_lock->donation, max_donation);
