@@ -19,7 +19,7 @@
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
-#define MAX_DEPTH 10
+#define MAX_DEPTH 4
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -237,14 +237,13 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered(&ready_list,&t->elem, &more_priority_cmp, NULL);
   t->status = THREAD_READY;
+  list_insert_ordered(&ready_list,&t->elem, &more_priority_cmp, NULL);
   //printf("Priority of curr thread and running %d %d\n",t->priority, thread_get_priority() );
-  intr_set_level (old_level);
-  if (t->priority > thread_get_priority()) {
-    return ;
+  if (thread_current() != idle_thread && t->priority > thread_get_priority()) {
     thread_yield();
   }
+  intr_set_level (old_level);
 }
 
 /* Returns the name of the running thread. */
@@ -358,18 +357,23 @@ int max(int a, int b){
     return a>b? a:b;
 }
 
+
 int complete_search(struct thread * t, int depth) {
-      if(depth >= MAX_DEPTH) return -1;
+      if(depth == MAX_DEPTH) return -1;
       int max_priority = 0;
-      for(struct list_elem* iter = list_begin(&t->locks);
+      for(struct list_elem * iter = list_begin(&t->locks);
         iter != list_end(&t->locks);
-        iter = list_next(iter)) {
+        iter = list_next(iter))
+      {
         struct lock * l = list_entry (iter, struct lock, lock_elem);
-        struct list waiters = l->semaphore.waiters;
-        for(struct list_elem* waiter_iter = list_begin(&waiters);
-          waiter_iter != list_end(&waiters);
-          waiter_iter = list_next(iter)) {
+        struct list * waiters = &l->semaphore.waiters;
+        for(struct list_elem * waiter_iter = list_begin(waiters);
+          waiter_iter != list_end(waiters);
+          waiter_iter = list_next(waiter_iter))
+        {
           struct thread * new_t = list_entry (waiter_iter,  struct thread, elem);
+          printf("priority is %d\n" , new_t->priority);
+          //max_priority = max(max_priority, new_t->priority);
           max_priority = max(max_priority, complete_search(new_t,depth+1));
         }
       }
