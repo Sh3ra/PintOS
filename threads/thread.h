@@ -17,6 +17,15 @@ struct real load_avg;
    that are ready to run but not actually running. */
 struct list ready_list;
 
+/* List of all processes.  Processes are added to this list
+   when they are first scheduled and removed when they exit. */
+struct list all_list;
+
+
+/* Idle thread. */
+static struct thread *idle_thread;
+
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
