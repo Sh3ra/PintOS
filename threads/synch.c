@@ -173,38 +173,6 @@ lock_init(struct lock *lock) {
 }
 
 
-/*void
-donate(struct thread *t, int priority, int depth) {
-    if (depth == MAX_DEPTH) return;
-    if (get_priority_of_specific_thread(t) >= priority) return;
-    t->donated_priority = priority;
-    if (t->status == THREAD_BLOCKED) {
-        if (t->blocking_lock != NULL) {
-            struct lock *curr_lock = t->blocking_lock;
-            if (priority <= curr_lock->donation) return;
-            curr_lock->donation = max(curr_lock->donation, priority);
-            donate(curr_lock->holder, priority, depth + 1);
-            reinsert_thread_in_list(curr_lock->holder, &curr_lock->semaphore.waiters);
-        }
-    } else {
-        reinsert_thread_in_list(t, &ready_list);
-    }
-}
-
-*//*
-void
-check_for_donation(struct lock *lock) {
-    struct thread *t = lock->holder;
-    if (t != NULL) {
-        struct thread *t_curr = thread_current();
-        donate(t, get_priority_of_specific_thread(t_curr), 0);
-        t_curr->blocking_lock = lock;
-        lock->donation = max(lock->donation, get_priority_of_specific_thread(t_curr));
-    }
-}
-*/
-
-
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current
    thread.
@@ -233,15 +201,6 @@ int dfs(struct list *waiters, int depth) {
          iter != list_end(waiters);
          iter = list_next(iter)) {
         struct thread *t = list_entry(iter,struct thread ,elem);
-        /*if (!list_empty(t->my_Locks)) {
-            for (struct list_elem *lockiter = list_begin(t->my_Locks);
-                 lockiter != list_end(t->my_Locks);
-                 lockiter = list_next(iter)) {
-                //maxi = max(max(maxi,t->priority) , t->don_priority);
-                maxi = max(maxi, dfs(&list_entry(lockiter,
-                struct lock ,lock_elem)->semaphore.waiters),depth + 1);
-            }
-        }*/
         maxi = max(max(maxi,t->don_priority), t->priority);
     }
     return maxi ;
@@ -266,7 +225,6 @@ lock_acquire(struct lock *lock) {
     getDonationFromWaiters(lock);
     list_push_back(&thread_current()->my_locks ,&lock->lock_elem);
     lock->holder = thread_current();
-    /*lock->donation = 0;*/
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -295,18 +253,6 @@ lock_try_acquire(struct lock *lock) {
    make sense to try to release a lock within an interrupt
    handler. */
 
-/*void get_current_donation(struct lock *lock) {
-    int max_donation = 0;
-    for (struct list_elem *iter = list_begin(&locks);
-         iter != list_end(&locks);
-         iter = list_next(iter)) {
-        struct lock *curr_lock = list_entry(iter,
-        struct lock, lock_elem);
-        if (lock_held_by_current_thread(curr_lock))
-            max_donation = max(curr_lock->donation, max_donation);
-    }
-    thread_current()->donated_priority = max_donation;
-}*/
 void remove_lock_and_get_donation(struct lock *lock){
     list_remove(&lock->lock_elem);
     struct thread *t  = thread_current();
@@ -324,9 +270,6 @@ lock_release(struct lock *lock) {
     ASSERT(lock != NULL);
     ASSERT(lock_held_by_current_thread(lock));
     lock->holder = NULL;
-   /* lock->donation = 0;
-    get_current_donation(lock);
-     */
     remove_lock_and_get_donation (lock) ;
     sema_up(&lock->semaphore);
 }
