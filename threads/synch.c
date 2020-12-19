@@ -31,7 +31,7 @@
 #include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-
+#include "threads/real.h"
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -217,7 +217,7 @@ lock_acquire(struct lock *lock) {
     ASSERT(!intr_context());
     ASSERT(!lock_held_by_current_thread(lock));
     //if(list_size(&locks)==0)for(;;);
-    if(lock->holder !=NULL){
+    if (lock->holder !=NULL){
         lock->holder->don_priority = max(max(lock->holder->don_priority ,thread_current()->priority),thread_current()->don_priority);
         reinsert_thread_in_list(lock->holder,&ready_list);
     }
