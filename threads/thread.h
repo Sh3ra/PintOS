@@ -96,11 +96,14 @@ struct thread
     tid_t tid;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
-    uint8_t *stack;                     /* Saved stack pointer. */
+    uint8_t *stack;
+    /* Saved stack pointer. */
     int priority;                       /* Priority. */
-    int donated_priority;
+    /*int fuckEverything;*/
+    int don_priority;
     int64_t time_to_wake_up_snow_white;
     struct lock * blocking_lock;
+    struct list my_locks ;
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
@@ -149,7 +152,8 @@ bool more_priority_cmp(const struct list_elem* a, const struct list_elem* b, voi
 int max(int a, int b);
 int get_priority_of_specific_thread(struct thread * t);
 int complete_search(struct thread * t, int depth);
-
+void
+reinsert_thread_in_list(struct thread *t, struct list *l);
 int thread_get_priority (void);
 void thread_set_priority (int);
 
