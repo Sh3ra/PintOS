@@ -172,11 +172,8 @@ thread_create(const char *name, int priority,
         return TID_ERROR;
 
     /* Initialize thread. */
-<<<<<<< HEAD
     init_thread(t, name, priority, thread_current()->recent_cpu.val, thread_current()->nice);
-=======
-    init_thread(t, name, priority);
->>>>>>> 1712695df97e59d7d157a2ab454cb3de655e5858
+
     tid = t->tid = allocate_tid();
 
     /* Stack frame for kernel_thread(). */
@@ -376,12 +373,8 @@ thread_get_priority(void) {
 /* Sets the current thread's nice value to NICE. */
 void
 thread_set_nice(int nice UNUSED) {
-<<<<<<< HEAD
     thread_current()->nice = nice;
     thread_current()->priority = PRI_MAX - (thread_get_recent_cpu()/4) - (nice*2);
-=======
-    /* Not yet implemented. */
->>>>>>> 1712695df97e59d7d157a2ab454cb3de655e5858
 }
 
 /* Returns the current thread's nice value. */
@@ -394,23 +387,13 @@ thread_get_nice(void) {
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg(void) {
-<<<<<<< HEAD
   return real_round(&load_avg) * 100;
-=======
-    /* Not yet implemented. */
-    return 0;
->>>>>>> 1712695df97e59d7d157a2ab454cb3de655e5858
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu(void) {
-<<<<<<< HEAD
     return (100)*real_round(&thread_current()->recent_cpu);
-=======
-    /* Not yet implemented. */
-    return 0;
->>>>>>> 1712695df97e59d7d157a2ab454cb3de655e5858
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -481,11 +464,8 @@ is_thread(struct thread *t) {
 /* Does basic initialization of T as a blocked thread named
    NAME. */
 static void
-<<<<<<< HEAD
 init_thread(struct thread *t, const char *name, int priority, int recent_cpu_val, int nice) {
-=======
-init_thread(struct thread *t, const char *name, int priority) {
->>>>>>> 1712695df97e59d7d157a2ab454cb3de655e5858
+
     enum intr_level old_level;
 
     ASSERT(t != NULL);
@@ -498,11 +478,8 @@ init_thread(struct thread *t, const char *name, int priority) {
     t->stack = (uint8_t *) t + PGSIZE;
     t->priority = priority;
     t->don_priority = 0;
-<<<<<<< HEAD
     t->recent_cpu.val = recent_cpu_val;
     t->nice = nice;
-=======
->>>>>>> 1712695df97e59d7d157a2ab454cb3de655e5858
     list_init(&t->my_locks);
     t->lock_holder=NULL;
     t->blocking_lock =NULL;

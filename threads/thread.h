@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/real.h"
 #define DEBUG 1
 #define MAX_DEPTH 10
 /*List of sleeping snow whites*/
@@ -22,7 +23,7 @@ struct list all_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
-
+struct real load_avg;
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -111,6 +112,8 @@ struct thread
     int don_priority;
     int64_t time_to_wake_up_snow_white;
     struct lock * blocking_lock;
+    struct real recent_cpu;
+    int nice;
     struct list my_locks ;
     struct list_elem allelem;           /* List element for all threads list. */
 
