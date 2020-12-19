@@ -106,11 +106,12 @@ sema_up(struct semaphore *sema) {
     ASSERT(sema != NULL);
 
     old_level = intr_disable();
+    //for(;;);
     sema->value++;
     if (!list_empty(&sema->waiters)) {
-        //msg("unblock %d %s",list_size(&ready_list),thread_current()->name);
+        //msg("unblock %d %s", list_size(&ready_list), thread_current()->name);
         thread_unblock(list_entry(list_pop_front(&sema->waiters),
-        struct thread, elem));
+                                  struct thread, elem));
     }
     intr_set_level(old_level);
 }
@@ -173,6 +174,25 @@ lock_init(struct lock *lock) {
 }
 
 
+int get_donation(struct lock *lock) {
+    struct list *waiters = &lock->semaphore.waiters;
+    int maxi = 0;
+    for (struct list_elem *iter = list_begin(waiters);
+         iter != list_end(waiters);
+         iter = list_next(iter)) {
+        struct thread *t = list_entry(iter, struct thread, elem);
+        maxi = max(max(maxi, t->don_priority), t->priority);
+        t->lock_holder = thread_current();
+        t->blocking_lock = lock;
+    }
+    return maxi;
+}
+
+void
+getDonationFromWaiters(struct lock *lock) {
+    thread_current()->don_priority = max(get_donation(lock), thread_current()->don_priority);
+}
+
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current
    thread.
@@ -182,48 +202,30 @@ lock_init(struct lock *lock) {
    interrupts disabled, but interrupts will be turned back on if
    we need to sleep. */
 
-/*void
-lock_acquire (struct lock *lock)
-{
-  ASSERT (lock != NULL);
-  ASSERT (!intr_context ());
-  ASSERT (!lock_held_by_current_thread (lock));
-  //if(list_size(&locks)==0)for(;;);
-  check_for_donation(lock);
-  sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
-  lock->donation = 0;
-}
-*/
-int dfs(struct list *waiters, int depth) {
-    int maxi = 0;
-    for (struct list_elem *iter = list_begin(waiters);
-         iter != list_end(waiters);
-         iter = list_next(iter)) {
-        struct thread *t = list_entry(iter,struct thread ,elem);
-        maxi = max(max(maxi,t->don_priority), t->priority);
-    }
-    return maxi ;
-}
-
-void
-getDonationFromWaiters(struct lock *lock) {
-    thread_current() -> don_priority = max(dfs(&lock->semaphore.waiters,0),thread_current() -> don_priority);
-}
-
 void
 lock_acquire(struct lock *lock) {
     ASSERT(lock != NULL);
     ASSERT(!intr_context());
     ASSERT(!lock_held_by_current_thread(lock));
-    //if(list_size(&locks)==0)for(;;);
-    if(lock->holder !=NULL){
-        lock->holder->don_priority = max(max(lock->holder->don_priority ,thread_current()->priority),thread_current()->don_priority);
-        reinsert_thread_in_list(lock->holder,&ready_list);
+    struct thread *holder = lock->holder;
+    while (holder != NULL) {
+        holder->don_priority = max(max(holder->don_priority, thread_current()->priority),
+                                   thread_current()->don_priority);
+        /*msg("holder is %d %s", list_size(&ready_list), holder->name);
+        msg("ready list %d holder has his %d donated %d %s", list_size(&ready_list), holder->priority,
+            holder->don_priority, thread_current()->name);
+        msg("holder status %d" ,holder->status == THREAD_READY?1:holder->status == THREAD_BLOCKED?2:holder->status == THREAD_RUNNING?3:0);*/
+        if (holder->status == THREAD_READY) {
+            reinsert_thread_in_list(holder, &ready_list);
+        }
+        else if (holder->status == THREAD_BLOCKED && holder->blocking_lock !=NULL) {
+            reinsert_thread_in_list(holder, &holder->blocking_lock->semaphore.waiters);
+        }
+        holder = holder->lock_holder;
     }
     sema_down(&lock->semaphore);
     getDonationFromWaiters(lock);
-    list_push_back(&thread_current()->my_locks ,&lock->lock_elem);
+    list_push_back(&thread_current()->my_locks, &lock->lock_elem);
     lock->holder = thread_current();
 }
 
@@ -253,24 +255,25 @@ lock_try_acquire(struct lock *lock) {
    make sense to try to release a lock within an interrupt
    handler. */
 
-void remove_lock_and_get_donation(struct lock *lock){
+void remove_lock_and_get_donation(struct lock *lock) {
     list_remove(&lock->lock_elem);
-    struct thread *t  = thread_current();
-    int maxi =0;
+    struct thread *t = thread_current();
+    int maxi = 0;
     for (struct list_elem *iter = list_begin(&t->my_locks);
          iter != list_end(&t->my_locks);
          iter = list_next(iter)) {
-        maxi = max(maxi ,
-                   dfs(&list_entry(iter,struct lock ,lock_elem)->semaphore.waiters,0));
+        maxi = max(maxi,
+                   get_donation(list_entry(iter, struct lock, lock_elem)));
     }
-    t->don_priority = maxi ;
+    t->don_priority = maxi;
 }
+
 void
 lock_release(struct lock *lock) {
     ASSERT(lock != NULL);
     ASSERT(lock_held_by_current_thread(lock));
     lock->holder = NULL;
-    remove_lock_and_get_donation (lock) ;
+    remove_lock_and_get_donation(lock);
     sema_up(&lock->semaphore);
 }
 
@@ -353,7 +356,7 @@ cond_signal(struct condition *cond, struct lock *lock UNUSED) {
 
     if (!list_empty(&cond->waiters))
         sema_up(&list_entry(list_pop_front(&cond->waiters),
-    struct semaphore_elem, elem)->semaphore);
+                            struct semaphore_elem, elem)->semaphore);
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
