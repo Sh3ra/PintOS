@@ -101,7 +101,6 @@ struct thread
     uint8_t *stack;
     /* Saved stack pointer. */
     int priority;                       /* Priority. */
-    /*int fuckEverything;*/
     int don_priority;
     int64_t time_to_wake_up_snow_white;
     struct lock * blocking_lock;
@@ -114,6 +113,7 @@ struct thread
 
     struct list_elem sleeping_elem;
 
+    struct thread *lock_holder ;
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */

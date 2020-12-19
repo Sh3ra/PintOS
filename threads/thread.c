@@ -489,6 +489,8 @@ init_thread(struct thread *t, const char *name, int priority, struct real recent
     t->recent_cpu = recent_cpu;
     t->nice = nice;
     list_init(&t->my_locks);
+    t->lock_holder=NULL;
+    t->blocking_lock =NULL;
     t->magic = THREAD_MAGIC;
 
     old_level = intr_disable();
