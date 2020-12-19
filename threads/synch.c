@@ -113,10 +113,13 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
+  sema->value++;
   if (!list_empty (&sema->waiters))
+  {
+    //msg("unblock %d %s",list_size(&ready_list),thread_current()->name);
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
-  sema->value++;
+  }
   intr_set_level (old_level);
 }
 
@@ -230,6 +233,7 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
+  //if(list_size(&locks)==0)for(;;);
   check_for_donation(lock);
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
@@ -263,14 +267,14 @@ lock_try_acquire (struct lock *lock)
    make sense to try to release a lock within an interrupt
    handler. */
 
-void get_current_donation() {
+void get_current_donation(struct lock *lock) {
  int max_donation = 0;
  for(struct list_elem * iter = list_begin(&locks);
      iter != list_end(&locks);
      iter = list_next(iter))
  {
    struct lock * curr_lock = list_entry(iter, struct lock, lock_elem);
-   if(curr_lock->holder == thread_current())
+   if(lock_held_by_current_thread(curr_lock))
      max_donation = max(curr_lock->donation, max_donation);
  }
  thread_current()->donated_priority = max_donation;
@@ -281,9 +285,9 @@ lock_release (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
-  get_current_donation();
   lock->holder = NULL;
   lock->donation = 0;
+  get_current_donation(lock);
   sema_up (&lock->semaphore);
 }
 
