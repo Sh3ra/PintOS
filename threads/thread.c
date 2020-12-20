@@ -22,8 +22,6 @@
 #define THREAD_MAGIC 0xcd6abf4b
 
 
-/* Initial thread, the thread running init.c:main(). */
-static struct thread *initial_thread;
 
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
@@ -53,7 +51,7 @@ static void kernel_thread(thread_func *, void *aux);
 
 static void idle(void *aux UNUSED);
 
-static struct thread *running_thread(void);
+struct thread *running_thread(void);
 
 static struct thread *next_thread_to_run(void);
 
@@ -80,8 +78,8 @@ static bool is_thread(struct thread *)UNUSED;
 
    It is not safe to call thread_current() until this function
    finishes. */
-        void
-        thread_init(void)
+void
+thread_init(void)
 {
     ASSERT(intr_get_level() == INTR_OFF);
     lock_init(&tid_lock);
@@ -170,6 +168,7 @@ thread_create(const char *name, int priority,
     if (t == NULL)
         return TID_ERROR;
 
+    count++;
     /* Initialize thread. */
     init_thread(t, name, priority, thread_current()->recent_cpu.val, thread_current()->nice);
 
@@ -230,7 +229,7 @@ thread_unblock(struct thread *t) {
     t->status = THREAD_READY;
     list_insert_ordered(&ready_list, &t->elem, &more_priority_cmp, NULL);
     //msg("unblock2 %d %s",list_size(&ready_list),thread_current()->name);
-    if (thread_current() != idle_thread &&
+    if (thread_current() != idle_thread && !intr_context() &&
         get_priority_of_specific_thread(t) >= get_priority_of_specific_thread(thread_current())) {
         // msg("ready %s",list_entry(list_front(&ready_list), struct thread, elem)->name);
         intr_set_level(old_level);
@@ -344,6 +343,12 @@ bool more_priority_cmp(const struct list_elem *a, const struct list_elem *b, voi
     return get_priority_of_specific_thread(t1) > get_priority_of_specific_thread(t2);
 }
 
+int priority_bound(int priority){
+  if(priority > PRI_MAX) return PRI_MAX;
+  if(priority < PRI_MIN) return PRI_MIN;
+  return priority;
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority(int new_priority) {
@@ -369,30 +374,45 @@ thread_get_priority(void) {
     return get_priority_of_specific_thread(thread_current());
 }
 
+void
+set_nice_specific_thread(struct thread * t, int nice) {
+  t->nice = nice;
+  mlfqs_set_priority_for_specific_thread(t);
+}
+
+
+void mlfqs_set_priority_for_specific_thread(struct thread * t){
+  struct real x;
+  x = div_real_int(&t->recent_cpu,4);
+  t->priority = PRI_MAX - real_truncate(&x) - (t->nice * 2);
+  t->priority = priority_bound(t->priority);
+}
+
+
 /* Sets the current thread's nice value to NICE. */
 void
 thread_set_nice(int nice UNUSED) {
-    thread_current()->nice = nice;
-    thread_current()->priority = PRI_MAX - (thread_get_recent_cpu()/4) - (nice*2);
+    set_nice_specific_thread(thread_current(), nice);
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice(void) {
-    /* Not yet implemented. */
-    return 0;
+    return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg(void) {
-  return real_round(&load_avg) * 100;
+  struct real x = mul_real_int(&load_avg,100);
+  return real_round(&x);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu(void) {
-    return (100)*real_round(&thread_current()->recent_cpu);
+    struct real x = mul_real_int(&thread_current()->recent_cpu,100);
+    return real_round(&x);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -470,23 +490,30 @@ init_thread(struct thread *t, const char *name, int priority, int recent_cpu_val
     ASSERT(t != NULL);
     ASSERT(PRI_MIN <= priority && priority <= PRI_MAX);
     ASSERT(name != NULL);
-
     memset(t, 0, sizeof *t);
     t->status = THREAD_BLOCKED;
     strlcpy(t->name, name, sizeof t->name);
     t->stack = (uint8_t *) t + PGSIZE;
     t->priority = priority;
     t->don_priority = 0;
-    t->recent_cpu.val = recent_cpu_val;
-    t->nice = nice;
+
     list_init(&t->my_locks);
     t->lock_holder=NULL;
     t->blocking_sema_list =NULL;
     t->magic = THREAD_MAGIC;
-
+    if(thread_mlfqs) {
+      t->recent_cpu.val = recent_cpu_val;
+      t->nice = nice;
+      set_nice_specific_thread(t, t->nice);
+    }
     old_level = intr_disable();
     list_push_back(&all_list, &t->allelem);
     intr_set_level(old_level);
+    /*
+    if(t->priority > thread_current()->priority) {
+      thread_yield();
+    }
+    */
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -575,7 +602,6 @@ schedule(void) {
     ASSERT(intr_get_level() == INTR_OFF);
     ASSERT(cur->status != THREAD_RUNNING);
     ASSERT(is_thread(next));
-
     if (cur != next)
         prev = switch_threads(cur, next);
     thread_schedule_tail(prev);

@@ -101,12 +101,12 @@ bool less_time_cmp(const struct list_elem* a, const struct list_elem* b, void* a
 void
 timer_sleep (int64_t ticks)
 {
+  enum intr_level old_level;
   int64_t start = timer_ticks ();
-
   ASSERT (intr_get_level () == INTR_ON);
   thread_current()-> time_to_wake_up_snow_white = ticks + timer_ticks();
   list_insert_ordered(&sleeping_threads,&thread_current()->sleeping_elem, &less_time_cmp, NULL);
-  enum intr_level old_level = intr_disable();
+  old_level = intr_disable();
   thread_block();
   intr_set_level (old_level);
 }
@@ -194,20 +194,57 @@ wake_up_snow_white(){
 }
 
 static void calculate_recent_cpu_for_all_threads() {
-  if(thread_current() != idle_thread)
-  thread_current()->recent_cpu.val = add_real_int(&thread_current()->recent_cpu,1)->val;
+  if(thread_current()->status == THREAD_RUNNING)
+  thread_current()->recent_cpu.val = add_real_int(&thread_current()->recent_cpu,1).val;
   for(struct list_elem* iter = list_begin(&all_list);
       iter != list_end(&all_list);
       iter = list_next(iter))
   {
     struct thread * t = list_entry(iter, struct thread, allelem);
-    t->recent_cpu.val = add_real_int(mul_real_int(&t->recent_cpu, (2*thread_get_load_avg())/(2*thread_get_load_avg()+1)), t->nice) -> val;
+    struct real x,y,z;
+    x = mul_real_int(&load_avg, 2);
+    y = mul_real_int(&load_avg, 2);
+    y = add_real_int(&y, 1);
+    z = div_real_real(&x,&y);
+    x = mul_real_real(&z, &t->recent_cpu);
+    y = add_real_int(&x, t->nice);
+    t->recent_cpu.val = y.val;
   }
 }
 
 static void
 update_load_average() {
-  load_avg.val = mul_real_real(mul_real_real(div_real_int(int_to_real(59),60),&load_avg) , mul_real_int(div_real_int(int_to_real(1),60.0), (int)list_size(&ready_list)))->val;
+  struct real x,y,z;
+  x = int_to_real(59);
+  if(DEBUG)printf("1 is %d\n", x.val);
+  y = int_to_real(60);
+  if(DEBUG)printf("2 is %d\n", y.val);
+  z = div_real_real(&x,&y);
+  if(DEBUG)printf("3 is %d\n",z.val);
+  z = mul_real_real(&z,&load_avg);
+  if(DEBUG)printf("4 is %d\n", z.val);
+  x = int_to_real(1);
+  if(DEBUG)printf("5 is %d\n", x.val);
+  x = div_real_real(&x,&y);
+  if(DEBUG)printf("6 is %d\n", x.val);
+  x = mul_real_int(&x, count - (int)list_size(&sleeping_threads) );
+  if(DEBUG)printf("7 is %d\n", x.val);
+  load_avg = add_real_real(&z,&x);
+  if(DEBUG)printf("load_avg is %d\n\n\n", load_avg.val);
+  struct real xz = mul_real_int(&load_avg,100);
+  if(DEBUG)printf("load_avg_multiplication from func is %d\n\n\n", xz.val);
+  if(DEBUG)printf("load_avg from func is %d\n\n\n", real_truncate(&xz));
+}
+
+void
+update_priority_of_all_threads() {
+  for(struct list_elem* iter = list_begin(&all_list);
+      iter != list_end(&all_list);
+      iter = list_next(iter))
+  {
+    struct thread * t = list_entry(iter, struct thread, allelem);
+    mlfqs_set_priority_for_specific_thread(t);
+  }
 }
 
 /* Timer interrupt handler. */
@@ -216,9 +253,13 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   wake_up_snow_white();
-  if(timer_ticks() % TIMER_FREQ == 0) {
+  if(timer_ticks() % TIMER_FREQ == 0 && thread_mlfqs) {
     update_load_average();
     calculate_recent_cpu_for_all_threads();
+  }
+  if(timer_ticks() % 4 == 0 && thread_mlfqs) {
+    update_priority_of_all_threads();
+    list_sort(&ready_list, &more_priority_cmp, NULL);
   }
   thread_tick ();
 }
