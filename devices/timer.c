@@ -193,6 +193,22 @@ wake_up_snow_white(){
   }
 }
 
+static void calculate_recent_cpu_for_all_threads() {
+  if(thread_current() != idle_thread)
+  thread_current()->recent_cpu.val = add_real_int(&thread_current()->recent_cpu,1)->val;
+  for(struct list_elem* iter = list_begin(&all_list);
+      iter != list_end(&all_list);
+      iter = list_next(iter))
+  {
+    struct thread * t = list_entry(iter, struct thread, allelem);
+    t->recent_cpu.val = add_real_int(mul_real_int(&t->recent_cpu, (2*thread_get_load_avg())/(2*thread_get_load_avg()+1)), t->nice) -> val;
+  }
+}
+
+static void
+update_load_average() {
+  load_avg.val = mul_real_real(mul_real_real(div_real_int(int_to_real(59),60),&load_avg) , mul_real_int(div_real_int(int_to_real(1),60.0), (int)list_size(&ready_list)))->val;
+}
 
 /* Timer interrupt handler. */
 static void
@@ -200,6 +216,10 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   wake_up_snow_white();
+  if(timer_ticks() % TIMER_FREQ == 0) {
+    update_load_average();
+    calculate_recent_cpu_for_all_threads();
+  }
   thread_tick ();
 }
 

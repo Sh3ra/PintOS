@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/real.h"
+
 #define DEBUG 1
 #define MAX_DEPTH 10
 /*List of sleeping snow whites*/
@@ -12,10 +13,18 @@ struct list sleeping_threads;
 /*List of locks*/
 struct list locks;
 
-struct real load_avg;
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 struct list ready_list;
+
+/* List of all processes.  Processes are added to this list
+   when they are first scheduled and removed when they exit. */
+struct list all_list;
+
+
+/* Idle thread. */
+static struct thread *idle_thread;
+struct real load_avg;
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -103,11 +112,12 @@ struct thread
     int priority;                       /* Priority. */
     int don_priority;
     int64_t time_to_wake_up_snow_white;
-    struct lock * blocking_lock;
+    struct list * blocking_sema_list;
+    struct real recent_cpu;
+    int nice;
     struct list my_locks ;
     struct list_elem allelem;           /* List element for all threads list. */
-    int nice;
-    struct real recent_cpu;
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 

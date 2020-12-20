@@ -31,7 +31,6 @@
 #include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-#include "threads/real.h"
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -65,10 +64,12 @@ sema_down(struct semaphore *sema) {
 
     old_level = intr_disable();
     while (sema->value == 0) {
+        thread_current()->blocking_sema_list = &sema->waiters;
         list_insert_ordered(&sema->waiters, &thread_current()->elem, &more_priority_cmp, NULL);
         thread_block();
     }
     sema->value--;
+    thread_current()->blocking_sema_list = NULL;
     intr_set_level(old_level);
 }
 
@@ -183,7 +184,7 @@ int get_donation(struct lock *lock) {
         struct thread *t = list_entry(iter, struct thread, elem);
         maxi = max(max(maxi, t->don_priority), t->priority);
         t->lock_holder = thread_current();
-        t->blocking_lock = lock;
+        t->blocking_sema_list = &lock->semaphore.waiters;
     }
     return maxi;
 }
@@ -208,20 +209,26 @@ lock_acquire(struct lock *lock) {
     ASSERT(!intr_context());
     ASSERT(!lock_held_by_current_thread(lock));
     struct thread *holder = lock->holder;
-    while (holder != NULL) {
-        holder->don_priority = max(max(holder->don_priority, thread_current()->priority),
-                                   thread_current()->don_priority);
-        /*msg("holder is %d %s", list_size(&ready_list), holder->name);
-        msg("ready list %d holder has his %d donated %d %s", list_size(&ready_list), holder->priority,
-            holder->don_priority, thread_current()->name);
-        msg("holder status %d" ,holder->status == THREAD_READY?1:holder->status == THREAD_BLOCKED?2:holder->status == THREAD_RUNNING?3:0);*/
-        if (holder->status == THREAD_READY) {
-            reinsert_thread_in_list(holder, &ready_list);
+    if(holder !=NULL) {
+        thread_current()->lock_holder = holder;
+        while (holder != NULL) {
+            holder->don_priority = max(max(holder->don_priority, thread_current()->priority),
+                                       thread_current()->don_priority);
+           /* msg("ready list has %d, holder is %s, his %d, donated %d,from %s,status %d", list_size(&ready_list),
+                holder->name,
+                holder->priority,
+                holder->don_priority, thread_current()->name,
+                holder->status == THREAD_READY ? 1 : holder->status == THREAD_BLOCKED ? 2 : holder->status ==
+                                                                                            THREAD_RUNNING
+                                                                                            ? 3 : 0);
+            */
+           if (holder->status == THREAD_READY) {
+                reinsert_thread_in_list(holder, &ready_list);
+            } else if (holder->status == THREAD_BLOCKED && holder->blocking_sema_list != NULL) {
+                reinsert_thread_in_list(holder, holder->blocking_sema_list);
+            }
+            holder = holder->lock_holder;
         }
-        else if (holder->status == THREAD_BLOCKED && holder->blocking_lock !=NULL) {
-            reinsert_thread_in_list(holder, &holder->blocking_lock->semaphore.waiters);
-        }
-        holder = holder->lock_holder;
     }
     sema_down(&lock->semaphore);
     getDonationFromWaiters(lock);
@@ -244,7 +251,6 @@ lock_try_acquire(struct lock *lock) {
     success = sema_try_down(&lock->semaphore);
     if (success) {
         lock->holder = thread_current();
-        lock->donation = 0;
     }
     return success;
 }
