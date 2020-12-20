@@ -227,7 +227,9 @@ update_load_average() {
   if(DEBUG)printf("5 is %d\n", x.val);
   x = div_real_real(&x,&y);
   if(DEBUG)printf("6 is %d\n", x.val);
-  x = mul_real_int(&x, count - (int)list_size(&sleeping_threads) );
+  int ready_size = (int) list_size(&ready_list);
+  if(thread_current() != idle_thread) ready_size++;
+  x = mul_real_int(&x, ready_size);
   if(DEBUG)printf("7 is %d\n", x.val);
   load_avg = add_real_real(&z,&x);
   if(DEBUG)printf("load_avg is %d\n\n\n", load_avg.val);
