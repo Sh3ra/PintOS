@@ -22,14 +22,6 @@
 #define THREAD_MAGIC 0xcd6abf4b
 
 
-/* List of all processes.  Processes are added to this list
-   when they are first scheduled and removed when they exit. */
-static struct list all_list;
-
-
-/* Idle thread. */
-static struct thread *idle_thread;
-
 /* Initial thread, the thread running init.c:main(). */
 static struct thread *initial_thread;
 
@@ -65,7 +57,7 @@ static struct thread *running_thread(void);
 
 static struct thread *next_thread_to_run(void);
 
-static void init_thread(struct thread *, const char *name, int priority);
+static void init_thread(struct thread *, const char *name, int priority, int recent_cpu_val, int nice);
 
 static bool is_thread(struct thread *)UNUSED;
                                       static void *alloc_frame(struct thread *, size_t size);
@@ -99,7 +91,7 @@ static bool is_thread(struct thread *)UNUSED;
     list_init(&sleeping_threads);
     /* Set up a thread structure for the running thread. */
     initial_thread = running_thread();
-    init_thread(initial_thread, "main", PRI_DEFAULT);
+    init_thread(initial_thread, "main", PRI_DEFAULT, 0, 0);
     initial_thread->status = THREAD_RUNNING;
     initial_thread->tid = allocate_tid();
 }
@@ -179,7 +171,8 @@ thread_create(const char *name, int priority,
         return TID_ERROR;
 
     /* Initialize thread. */
-    init_thread(t, name, priority);
+    init_thread(t, name, priority, thread_current()->recent_cpu.val, thread_current()->nice);
+
     tid = t->tid = allocate_tid();
 
     /* Stack frame for kernel_thread(). */
@@ -379,7 +372,8 @@ thread_get_priority(void) {
 /* Sets the current thread's nice value to NICE. */
 void
 thread_set_nice(int nice UNUSED) {
-    /* Not yet implemented. */
+    thread_current()->nice = nice;
+    thread_current()->priority = PRI_MAX - (thread_get_recent_cpu()/4) - (nice*2);
 }
 
 /* Returns the current thread's nice value. */
@@ -392,15 +386,13 @@ thread_get_nice(void) {
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg(void) {
-    /* Not yet implemented. */
-    return 0;
+  return real_round(&load_avg) * 100;
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu(void) {
-    /* Not yet implemented. */
-    return 0;
+    return (100)*real_round(&thread_current()->recent_cpu);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -471,7 +463,8 @@ is_thread(struct thread *t) {
 /* Does basic initialization of T as a blocked thread named
    NAME. */
 static void
-init_thread(struct thread *t, const char *name, int priority) {
+init_thread(struct thread *t, const char *name, int priority, int recent_cpu_val, int nice) {
+
     enum intr_level old_level;
 
     ASSERT(t != NULL);
@@ -484,6 +477,8 @@ init_thread(struct thread *t, const char *name, int priority) {
     t->stack = (uint8_t *) t + PGSIZE;
     t->priority = priority;
     t->don_priority = 0;
+    t->recent_cpu.val = recent_cpu_val;
+    t->nice = nice;
     list_init(&t->my_locks);
     t->lock_holder=NULL;
     t->blocking_sema_list =NULL;

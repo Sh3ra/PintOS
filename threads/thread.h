@@ -15,6 +15,15 @@ struct list locks;
    that are ready to run but not actually running. */
 struct list ready_list;
 
+/* List of all processes.  Processes are added to this list
+   when they are first scheduled and removed when they exit. */
+struct list all_list;
+
+
+/* Idle thread. */
+static struct thread *idle_thread;
+struct real load_avg;
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -102,8 +111,11 @@ struct thread
     int don_priority;
     int64_t time_to_wake_up_snow_white;
     struct list * blocking_sema_list;
+    struct real recent_cpu;
+    int nice;
     struct list my_locks ;
     struct list_elem allelem;           /* List element for all threads list. */
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
