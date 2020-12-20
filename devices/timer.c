@@ -212,6 +212,10 @@ static void calculate_recent_cpu_for_all_threads() {
   }
 }
 
+static compare_to_idle(char * name) {
+  if(name[0] == 'i' && name[1] == 'd' && name[2] == 'l' && name[3] =='e') return false;
+  return true;
+}
 static void
 update_load_average() {
   struct real x,y,z;
@@ -228,12 +232,15 @@ update_load_average() {
   x = div_real_real(&x,&y);
   if(DEBUG)printf("6 is %d\n", x.val);
   int ready_size = (int) list_size(&ready_list);
-  if(thread_current() != idle_thread) ready_size++;
+  if(DEBUG)printf("ready_size before adding current is %d\n", x.val);
+  if(compare_to_idle(thread_current()->name)) ready_size++;
+  if(DEBUG)printf("ready_size after checking current is %d\n", x.val);
   x = mul_real_int(&x, ready_size);
   if(DEBUG)printf("7 is %d\n", x.val);
   load_avg = add_real_real(&z,&x);
   if(DEBUG)printf("load_avg is %d\n\n\n", load_avg.val);
   struct real xz = mul_real_int(&load_avg,100);
+  printf("%s\n", thread_current()->name);
   if(DEBUG)printf("load_avg_multiplication from func is %d\n\n\n", xz.val);
   if(DEBUG)printf("load_avg from func is %d\n\n\n", real_truncate(&xz));
 }

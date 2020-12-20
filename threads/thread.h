@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include "threads/real.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #define MAX_DEPTH 10
 /*List of sleeping snow whites*/
 struct list sleeping_threads;
