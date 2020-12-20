@@ -111,8 +111,6 @@ thread_start(void) {
     sema_down(&idle_started);
 }
 static void calculate_recent_cpu_for_all_threads() {
-  if(thread_current()->status == THREAD_RUNNING)
-  thread_current()->recent_cpu.val = add_real_int(&thread_current()->recent_cpu,1).val;
   for(struct list_elem* iter = list_begin(&all_list);
       iter != list_end(&all_list);
       iter = list_next(iter))
@@ -176,17 +174,19 @@ thread_tick(void) {
           user_ticks++;
 #endif
     else
-        kernel_ticks++;
+      kernel_ticks++;
+if(thread_current()->status == THREAD_RUNNING)
+thread_current()->recent_cpu.val = add_real_int(&thread_current()->recent_cpu,1).val;
 if(timer_ticks() % TIMER_FREQ == 0 && thread_mlfqs) {
     update_load_average();
     calculate_recent_cpu_for_all_threads();
   }
-  
+
   if(timer_ticks() % 4 == 0 && thread_mlfqs) {
     update_priority_of_all_threads();
     list_sort(&ready_list, &more_priority_cmp, NULL);
   }
-  
+
     /* Enforce preemption. */
     if (++thread_ticks >= TIME_SLICE)
         intr_yield_on_return();
