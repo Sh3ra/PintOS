@@ -13,6 +13,5 @@ vm
 LICENSE
 Make.config
 Makefile
-Makefile.build
 Makefile.kernel
 Makefile.userprog
