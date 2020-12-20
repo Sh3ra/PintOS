@@ -4,6 +4,7 @@
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
+#include "devices/timer.h"
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -109,6 +110,58 @@ thread_start(void) {
     /* Wait for the idle thread to initialize idle_thread. */
     sema_down(&idle_started);
 }
+static void calculate_recent_cpu_for_all_threads() {
+  if(thread_current()->status == THREAD_RUNNING)
+  thread_current()->recent_cpu.val = add_real_int(&thread_current()->recent_cpu,1).val;
+  for(struct list_elem* iter = list_begin(&all_list);
+      iter != list_end(&all_list);
+      iter = list_next(iter))
+  {
+    struct thread * t = list_entry(iter, struct thread, allelem);
+    struct real x,y,z;
+    x = mul_real_int(&load_avg, 2);
+    y = mul_real_int(&load_avg, 2);
+    y = add_real_int(&y, 1);
+    z = div_real_real(&x,&y);
+    x = mul_real_real(&z, &t->recent_cpu);
+    y = add_real_int(&x, t->nice);
+    t->recent_cpu.val = y.val;
+  }
+}
+
+static compare_to_idle(char * name) {
+  if(name[0] == 'i' && name[1] == 'd' && name[2] == 'l' && name[3] =='e') return false;
+  return true;
+}
+static void
+update_load_average() {
+  struct real x,y,z;
+  x = int_to_real(59);
+  if(DEBUG)printf("1 is %d\n", x.val);
+  y = int_to_real(60);
+  if(DEBUG)printf("2 is %d\n", y.val);
+  z = div_real_real(&x,&y);
+  if(DEBUG)printf("3 is %d\n",z.val);
+  z = mul_real_real(&z,&load_avg);
+  if(DEBUG)printf("4 is %d\n", z.val);
+  x = int_to_real(1);
+  if(DEBUG)printf("5 is %d\n", x.val);
+  x = div_real_real(&x,&y);
+  if(DEBUG)printf("6 is %d\n", x.val);
+  int ready_size = (int) list_size(&ready_list);
+  if(DEBUG)printf("ready_size before adding current is %d\n", x.val);
+  struct thread * tc=thread_current();
+  if(DEBUG)msg("curr %x idle %x",&(*tc),&(*idle_thread));
+  if(thread_current()!=idle_thread) ready_size++;
+  if(DEBUG)printf("ready_size after checking current is %d\n", x.val);
+  x = mul_real_int(&x, ready_size);
+  if(DEBUG)printf("7 is %d\n", x.val);
+  load_avg = add_real_real(&z,&x);
+  if(DEBUG)printf("load_avg is %d\n\n\n", load_avg.val);
+  struct real xz = mul_real_int(&load_avg,100);
+  if(DEBUG)printf("load_avg_multiplication from func is %d\n\n\n", xz.val);
+  if(DEBUG)printf("load_avg from func is %d\n\n\n", real_truncate(&xz));
+}
 
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
@@ -124,7 +177,16 @@ thread_tick(void) {
 #endif
     else
         kernel_ticks++;
-
+if(timer_ticks() % TIMER_FREQ == 0 && thread_mlfqs) {
+    update_load_average();
+    calculate_recent_cpu_for_all_threads();
+  }
+  
+  if(timer_ticks() % 4 == 0 && thread_mlfqs) {
+    update_priority_of_all_threads();
+    list_sort(&ready_list, &more_priority_cmp, NULL);
+  }
+  
     /* Enforce preemption. */
     if (++thread_ticks >= TIME_SLICE)
         intr_yield_on_return();
