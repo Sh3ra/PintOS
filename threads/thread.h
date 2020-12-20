@@ -4,6 +4,8 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/real.h"
+
 #define DEBUG 1
 #define MAX_DEPTH 10
 /*List of sleeping snow whites*/
