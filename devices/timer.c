@@ -85,14 +85,15 @@ timer_elapsed (int64_t then)
 }
 
 /* comparator for inserting elemtns in sorted list*/
-bool less_time_cmp(const struct list_elem* a, const struct list_elem* b, void* aux UNUSED){
-  struct thread* t1 = list_entry(a, struct thread, sleeping_elem);
-  struct thread* t2 = list_entry(b, struct thread, sleeping_elem);
-  if(t1->time_to_wake_up_snow_white == t2->time_to_wake_up_snow_white)
+bool
+less_time_cmp(const struct list_elem* a, const struct list_elem* b, void* aux UNUSED){
+  struct thread* t1 = list_entry(a, struct thread, elem);
+  struct thread* t2 = list_entry(b, struct thread, elem);
+  if(t1->time_to_wake_up == t2->time_to_wake_up)
   {
     return t1->priority > t2->priority;
   }
-  return t1->time_to_wake_up_snow_white < t2->time_to_wake_up_snow_white;
+  return t1->time_to_wake_up < t2->time_to_wake_up;
 }
 
 
@@ -104,8 +105,8 @@ timer_sleep (int64_t ticks)
   enum intr_level old_level;
   int64_t start = timer_ticks ();
   ASSERT (intr_get_level () == INTR_ON);
-  thread_current()-> time_to_wake_up_snow_white = ticks + timer_ticks();
-  list_insert_ordered(&sleeping_threads,&thread_current()->sleeping_elem, &less_time_cmp, NULL);
+  thread_current()-> time_to_wake_up = ticks + timer_ticks();
+  list_insert_ordered(&sleeping_threads,&thread_current()->elem, &less_time_cmp, NULL);
   old_level = intr_disable();
   thread_block();
   intr_set_level (old_level);
@@ -183,17 +184,17 @@ timer_print_stats (void)
 }
 
 
-/*wakes up snow white*/
+/* wakes up thread */
 static void
-wake_up_snow_white(){
+wake_up_thread(){
   struct thread * t;
-  while(!list_empty(&sleeping_threads) &&  (t = list_entry(list_front(&sleeping_threads), struct thread, sleeping_elem))->time_to_wake_up_snow_white <= timer_ticks() && t != NULL){
+  while(!list_empty(&sleeping_threads) &&  (t = list_entry(list_front(&sleeping_threads), struct thread, elem))->time_to_wake_up <= timer_ticks() && t != NULL){
     list_pop_front(&sleeping_threads);
     thread_unblock(t);
   }
 }
 
-
+/* update_priority_of_all_threads */
 void
 update_priority_of_all_threads() {
   for(struct list_elem* iter = list_begin(&all_list);
@@ -210,7 +211,7 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
-  wake_up_snow_white();
+  wake_up_thread();
   thread_tick ();
 }
 

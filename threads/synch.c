@@ -107,10 +107,8 @@ sema_up(struct semaphore *sema) {
     ASSERT(sema != NULL);
 
     old_level = intr_disable();
-    //for(;;);
     sema->value++;
     if (!list_empty(&sema->waiters)) {
-        //msg("unblock %d %s", list_size(&ready_list), thread_current()->name);
         thread_unblock(list_entry(list_pop_front(&sema->waiters),
                                   struct thread, elem));
     }
@@ -170,12 +168,11 @@ lock_init(struct lock *lock) {
     ASSERT(lock != NULL);
     lock->holder = NULL;
     sema_init(&lock->semaphore, 1);
-    if (locks.head.next == &locks.tail)
-        list_push_back(&locks, &lock->lock_elem);
 }
 
-
-int get_donation(struct lock *lock) {
+/* Get maximum donation from waiters of lock lock */
+int 
+get_donation(struct lock *lock) {
     struct list *waiters = &lock->semaphore.waiters;
     int maxi = 0;
     for (struct list_elem *iter = list_begin(waiters);
@@ -189,6 +186,7 @@ int get_donation(struct lock *lock) {
     return maxi;
 }
 
+/* Get maximum donation from waiters of lock lock */
 void
 getDonationFromWaiters(struct lock *lock) {
     thread_current()->don_priority = max(get_donation(lock), thread_current()->don_priority);
@@ -214,14 +212,6 @@ lock_acquire(struct lock *lock) {
         while (holder != NULL) {
             holder->don_priority = max(max(holder->don_priority, thread_current()->priority),
                                        thread_current()->don_priority);
-           /* msg("ready list has %d, holder is %s, his %d, donated %d,from %s,status %d", list_size(&ready_list),
-                holder->name,
-                holder->priority,
-                holder->don_priority, thread_current()->name,
-                holder->status == THREAD_READY ? 1 : holder->status == THREAD_BLOCKED ? 2 : holder->status ==
-                                                                                            THREAD_RUNNING
-                                                                                            ? 3 : 0);
-            */
            if (holder->status == THREAD_READY) {
                 reinsert_thread_in_list(holder, &ready_list);
             } else if (holder->status == THREAD_BLOCKED && holder->blocking_sema_list != NULL) {
@@ -254,13 +244,7 @@ lock_try_acquire(struct lock *lock) {
     }
     return success;
 }
-
-/* Releases LOCK, which must be owned by the current thread.
-
-   An interrupt handler cannot acquire a lock, so it does not
-   make sense to try to release a lock within an interrupt
-   handler. */
-
+/* Removes lock from my_locks list of thread and get new donation from the locks the threads holds*/
 void remove_lock_and_get_donation(struct lock *lock) {
     list_remove(&lock->lock_elem);
     struct thread *t = thread_current();
@@ -273,6 +257,12 @@ void remove_lock_and_get_donation(struct lock *lock) {
     }
     t->don_priority = maxi;
 }
+
+/* Releases LOCK, which must be owned by the current thread.
+
+   An interrupt handler cannot acquire a lock, so it does not
+   make sense to try to release a lock within an interrupt
+   handler. */
 
 void
 lock_release(struct lock *lock) {
@@ -300,6 +290,7 @@ struct semaphore_elem {
     int priority ;
 };
 
+/* Comparator for condion variables list*/
 bool more_priority_cond_cmp(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
     struct semaphore_elem *sema_elem1 = list_entry(a,
                                                    struct semaphore_elem, elem);
@@ -307,6 +298,7 @@ bool more_priority_cond_cmp(const struct list_elem *a, const struct list_elem *b
                                                    struct semaphore_elem, elem);
     return sema_elem1->priority > sema_elem2->priority;
 }
+
 /* Initializes condition variable COND.  A condition variable
    allows one piece of code to signal a condition and cooperating
    code to receive the signal and act upon it. */

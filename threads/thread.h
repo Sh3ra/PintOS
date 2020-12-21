@@ -9,15 +9,13 @@
 #define DEBUG 0
 #define DEBUG2 0
 #define MAX_DEPTH 10
-/*List of sleeping snow whites*/
-struct list sleeping_threads;
 
 /* Initial thread, the thread running init.c:main().*/
 struct thread *initial_thread;
 
-/*List of locks*/
-struct list locks;
-int count;
+/*List of sleeping threads*/
+struct list sleeping_threads;
+
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 struct list ready_list;
@@ -29,6 +27,8 @@ struct list all_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
+
+/*load average*/
 struct real load_avg;
 
 /* States in a thread's life cycle. */
@@ -112,23 +112,24 @@ struct thread
     tid_t tid;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
-    uint8_t *stack;
-    /* Saved stack pointer. */
+    uint8_t *stack;                     /* Saved stack pointer. */
+    int64_t time_to_wake_up;            /* time where thread should wake up*/
     int priority;                       /* Priority. */
-    int don_priority;
-    int64_t time_to_wake_up_snow_white;
-    struct list * blocking_sema_list;
-    struct real recent_cpu;
-    int nice;
-    struct list my_locks ;
-    struct list_elem allelem;           /* List element for all threads list. */
+    int don_priority;                   /* Donated priority */
+    int nice;                           /* Nice value for thread */
 
-    /* Shared between thread.c and synch.c. */
+    struct list_elem allelem;           /* List element for all threads list. */
+    
+    struct real recent_cpu;             /* Thread's recent cpu */
+
+    struct list my_locks ;              /* List of locks the thread holds */
+    struct list * blocking_sema_list;   /* Pointer to the waiters list for the blocking sema*/
+    struct thread *lock_holder ;        /* Pointer to the Thread Thats holds the lock that caused the blocking*/
+
+    /* Shared between thread.c and synch.c. and timer.c */
     struct list_elem elem;              /* List element. */
 
-    struct list_elem sleeping_elem;
 
-    struct thread *lock_holder ;
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -172,8 +173,7 @@ bool more_priority_cmp(const struct list_elem* a, const struct list_elem* b, voi
 int max(int a, int b);
 int get_priority_of_specific_thread(struct thread * t);
 int complete_search(struct thread * t, int depth);
-void
-reinsert_thread_in_list(struct thread *t, struct list *l);
+void reinsert_thread_in_list(struct thread *t, struct list *l);
 int thread_get_priority (void);
 void thread_set_priority (int);
 

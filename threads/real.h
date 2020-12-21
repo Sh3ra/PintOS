@@ -7,7 +7,7 @@ struct real int_to_real(int n); //convert integer n to fixed point
 
 int real_truncate(struct real * x); //convert fixed point x to integer (rounding towards zero)
 
-int real_round(struct real * x);  //convert fixed point x to integer (rounding to nearest)
+int real_round(struct real * x);  //convert fixed point x to integer (rounding to nearest int)
 
 struct real add_real_real(struct real * x, struct real * y); // returns real x +  real y
 

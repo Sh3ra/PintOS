@@ -84,7 +84,6 @@ thread_init(void)
 {
     ASSERT(intr_get_level() == INTR_OFF);
     lock_init(&tid_lock);
-    list_init(&locks);
     list_init(&ready_list);
     list_init(&all_list);
     list_init(&sleeping_threads);
@@ -110,7 +109,11 @@ thread_start(void) {
     /* Wait for the idle thread to initialize idle_thread. */
     sema_down(&idle_started);
 }
-static void calculate_recent_cpu_for_all_threads() {
+
+
+/* calculate_recent_cpu_for_all_threads */
+static void 
+calculate_recent_cpu_for_all_threads() {
   for(struct list_elem* iter = list_begin(&all_list);
       iter != list_end(&all_list);
       iter = list_next(iter))
@@ -127,38 +130,22 @@ static void calculate_recent_cpu_for_all_threads() {
   }
 }
 
-static compare_to_idle(char * name) {
-  if(name[0] == 'i' && name[1] == 'd' && name[2] == 'l' && name[3] =='e') return false;
-  return true;
-}
+/* update_load_average */
 static void
 update_load_average() {
   struct real x,y,z;
   x = int_to_real(59);
-  if(DEBUG)printf("1 is %d\n", x.val);
   y = int_to_real(60);
-  if(DEBUG)printf("2 is %d\n", y.val);
   z = div_real_real(&x,&y);
-  if(DEBUG)printf("3 is %d\n",z.val);
   z = mul_real_real(&z,&load_avg);
-  if(DEBUG)printf("4 is %d\n", z.val);
   x = int_to_real(1);
-  if(DEBUG)printf("5 is %d\n", x.val);
   x = div_real_real(&x,&y);
-  if(DEBUG)printf("6 is %d\n", x.val);
   int ready_size = (int) list_size(&ready_list);
-  if(DEBUG)printf("ready_size before adding current is %d\n", x.val);
   struct thread * tc=thread_current();
-  if(DEBUG)msg("curr %x idle %x",&(*tc),&(*idle_thread));
   if(thread_current()!=idle_thread) ready_size++;
-  if(DEBUG)printf("ready_size after checking current is %d\n", x.val);
   x = mul_real_int(&x, ready_size);
-  if(DEBUG)printf("7 is %d\n", x.val);
   load_avg = add_real_real(&z,&x);
-  if(DEBUG)printf("load_avg is %d\n\n\n", load_avg.val);
   struct real xz = mul_real_int(&load_avg,100);
-  if(DEBUG)printf("load_avg_multiplication from func is %d\n\n\n", xz.val);
-  if(DEBUG)printf("load_avg from func is %d\n\n\n", real_truncate(&xz));
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -175,17 +162,20 @@ thread_tick(void) {
 #endif
     else
       kernel_ticks++;
-if(thread_current()->status == THREAD_RUNNING)
-thread_current()->recent_cpu.val = add_real_int(&thread_current()->recent_cpu,1).val;
-if(timer_ticks() % TIMER_FREQ == 0 && thread_mlfqs) {
-    update_load_average();
-    calculate_recent_cpu_for_all_threads();
-  }
+    
+    //if(thread_current()->status == THREAD_RUNNING)
+    thread_current()->recent_cpu.val = add_real_int(&thread_current()->recent_cpu,1).val;
 
-  if(timer_ticks() % 4 == 0 && thread_mlfqs) {
-    update_priority_of_all_threads();
-    list_sort(&ready_list, &more_priority_cmp, NULL);
-  }
+    /* update_load_average and calculate_recent_cpu_for_all_threads every TIMER_FREQ */
+    if(timer_ticks() % TIMER_FREQ == 0 && thread_mlfqs) {
+        update_load_average();
+        calculate_recent_cpu_for_all_threads();
+    }
+    /*update_priority_of_all_threads and resorting the ready list every 4 ticks*/
+    if(timer_ticks() % 4 == 0 && thread_mlfqs) {
+        update_priority_of_all_threads();
+        list_sort(&ready_list, &more_priority_cmp, NULL);
+    }
 
     /* Enforce preemption. */
     if (++thread_ticks >= TIME_SLICE)
@@ -230,7 +220,6 @@ thread_create(const char *name, int priority,
     if (t == NULL)
         return TID_ERROR;
 
-    count++;
     /* Initialize thread. */
     init_thread(t, name, priority, thread_current()->recent_cpu.val, thread_current()->nice);
 
@@ -371,9 +360,6 @@ thread_yield(void) {
     old_level = intr_disable();
     if (cur != idle_thread) {
         list_insert_ordered(&ready_list, &cur->elem, &more_priority_cmp, NULL);
-        //msg("yeald  %d %s",list_size(&ready_list),thread_current()->name);
-        //msg("ready %s",list_entry(list_front(&ready_list), struct thread, elem)->name);
-
     }
     cur->status = THREAD_READY;
     schedule();
@@ -405,7 +391,9 @@ bool more_priority_cmp(const struct list_elem *a, const struct list_elem *b, voi
     return get_priority_of_specific_thread(t1) > get_priority_of_specific_thread(t2);
 }
 
-int priority_bound(int priority){
+/*makes sure the priority is within accepted range [PRI_MAX,PRI_MIN]*/
+int
+priority_bound(int priority){
   if(priority > PRI_MAX) return PRI_MAX;
   if(priority < PRI_MIN) return PRI_MIN;
   return priority;
@@ -421,12 +409,14 @@ thread_set_priority(int new_priority) {
         thread_yield();
     }
 }
-
-int max(int a, int b) {
+/* gets the maximum*/
+int 
+max(int a, int b) {
     return a > b ? a : b;
 }
-
-int get_priority_of_specific_thread(struct thread *t) {
+/*return the max priority of any thread*/
+int
+get_priority_of_specific_thread(struct thread *t) {
     return max(t->priority, t->don_priority);
 }
 
@@ -436,14 +426,16 @@ thread_get_priority(void) {
     return get_priority_of_specific_thread(thread_current());
 }
 
+/*sets the nice value for thread t and update its priority*/
 void
 set_nice_specific_thread(struct thread * t, int nice) {
   t->nice = nice;
   mlfqs_set_priority_for_specific_thread(t);
 }
 
-
-void mlfqs_set_priority_for_specific_thread(struct thread * t){
+/*update the priority of given thread*/
+void 
+mlfqs_set_priority_for_specific_thread(struct thread * t){
   struct real x;
   x = div_real_int(&t->recent_cpu,4);
   t->priority = PRI_MAX - real_truncate(&x) - (t->nice * 2);
@@ -571,11 +563,6 @@ init_thread(struct thread *t, const char *name, int priority, int recent_cpu_val
     old_level = intr_disable();
     list_push_back(&all_list, &t->allelem);
     intr_set_level(old_level);
-    /*
-    if(t->priority > thread_current()->priority) {
-      thread_yield();
-    }
-    */
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
