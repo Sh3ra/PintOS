@@ -287,7 +287,7 @@ lock_held_by_current_thread(const struct lock *lock) {
 struct semaphore_elem {
     struct list_elem elem;              /* List element. */
     struct semaphore semaphore;         /* This semaphore. */
-    int priority ;
+    int priority ;                      /* max priority the sema blocking*/
 };
 
 /* Comparator for condion variables list*/

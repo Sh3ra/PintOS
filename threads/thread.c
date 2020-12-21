@@ -145,7 +145,6 @@ update_load_average() {
   if(thread_current()!=idle_thread) ready_size++;
   x = mul_real_int(&x, ready_size);
   load_avg = add_real_real(&z,&x);
-  struct real xz = mul_real_int(&load_avg,100);
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -163,7 +162,6 @@ thread_tick(void) {
     else
       kernel_ticks++;
     
-    //if(thread_current()->status == THREAD_RUNNING)
     thread_current()->recent_cpu.val = add_real_int(&thread_current()->recent_cpu,1).val;
 
     /* update_load_average and calculate_recent_cpu_for_all_threads every TIMER_FREQ */
