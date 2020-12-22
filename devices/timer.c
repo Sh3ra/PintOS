@@ -1,12 +1,4 @@
 #include "devices/timer.h"
-#include <debug.h>
-#include <inttypes.h>
-#include <round.h>
-#include <stdio.h>
-#include "devices/pit.h"
-#include "threads/interrupt.h"
-#include "threads/synch.h"
-#include "threads/thread.h"
 
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -85,7 +77,7 @@ timer_elapsed (int64_t then)
 }
 
 /* comparator for inserting elemtns in sorted list*/
-bool
+static bool
 less_time_cmp(const struct list_elem* a, const struct list_elem* b, void* aux UNUSED){
   struct thread* t1 = list_entry(a, struct thread, elem);
   struct thread* t2 = list_entry(b, struct thread, elem);
@@ -103,7 +95,6 @@ void
 timer_sleep (int64_t ticks)
 {
   enum intr_level old_level;
-  int64_t start = timer_ticks ();
   ASSERT (intr_get_level () == INTR_ON);
   thread_current()-> time_to_wake_up = ticks + timer_ticks();
   list_insert_ordered(&sleeping_threads,&thread_current()->elem, &less_time_cmp, NULL);
@@ -186,7 +177,7 @@ timer_print_stats (void)
 
 /* wakes up thread */
 static void
-wake_up_thread(){
+wake_up_thread(void){
   struct thread * t;
   while(!list_empty(&sleeping_threads) &&  (t = list_entry(list_front(&sleeping_threads), struct thread, elem))->time_to_wake_up <= timer_ticks() && t != NULL){
     list_pop_front(&sleeping_threads);
@@ -196,7 +187,7 @@ wake_up_thread(){
 
 /* update_priority_of_all_threads */
 void
-update_priority_of_all_threads() {
+update_priority_of_all_threads(void) {
   for(struct list_elem* iter = list_begin(&all_list);
       iter != list_end(&all_list);
       iter = list_next(iter))

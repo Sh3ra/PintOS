@@ -3,6 +3,14 @@
 
 #include <round.h>
 #include <stdint.h>
+#include <debug.h>
+#include <inttypes.h>
+#include <round.h>
+#include <stdio.h>
+#include "devices/pit.h"
+#include "threads/interrupt.h"
+#include "threads/synch.h"
+#include "threads/thread.h"
 
 /* Number of timer interrupts per second. */
 #define TIMER_FREQ 100
@@ -26,4 +34,5 @@ void timer_ndelay (int64_t nanoseconds);
 
 void timer_print_stats (void);
 
+void update_priority_of_all_threads(void);
 #endif /* devices/timer.h */

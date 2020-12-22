@@ -65,7 +65,6 @@ static bool is_thread(struct thread *)UNUSED;
                                       static tid_t allocate_tid(void);
                                       int max(int a, int b);
                                       int get_priority_of_specific_thread(struct thread *t);
-                                      int complete_search(struct thread *t, int depth);
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -113,7 +112,7 @@ thread_start(void) {
 
 /* calculate_recent_cpu_for_all_threads */
 static void 
-calculate_recent_cpu_for_all_threads() {
+calculate_recent_cpu_for_all_threads(void) {
   for(struct list_elem* iter = list_begin(&all_list);
       iter != list_end(&all_list);
       iter = list_next(iter))
@@ -132,7 +131,7 @@ calculate_recent_cpu_for_all_threads() {
 
 /* update_load_average */
 static void
-update_load_average() {
+update_load_average(void) {
   struct real x,y,z;
   x = int_to_real(59);
   y = int_to_real(60);
@@ -141,7 +140,6 @@ update_load_average() {
   x = int_to_real(1);
   x = div_real_real(&x,&y);
   int ready_size = (int) list_size(&ready_list);
-  struct thread * tc=thread_current();
   if(thread_current()!=idle_thread) ready_size++;
   x = mul_real_int(&x, ready_size);
   load_avg = add_real_real(&z,&x);
@@ -390,7 +388,7 @@ bool more_priority_cmp(const struct list_elem *a, const struct list_elem *b, voi
 }
 
 /*makes sure the priority is within accepted range [PRI_MAX,PRI_MIN]*/
-int
+static int
 priority_bound(int priority){
   if(priority > PRI_MAX) return PRI_MAX;
   if(priority < PRI_MIN) return PRI_MIN;
@@ -423,22 +421,22 @@ int
 thread_get_priority(void) {
     return get_priority_of_specific_thread(thread_current());
 }
-
-/*sets the nice value for thread t and update its priority*/
+/*update the priority of given thread*/
 void
+mlfqs_set_priority_for_specific_thread(struct thread * t){
+    struct real x;
+    x = div_real_int(&t->recent_cpu,4);
+    t->priority = PRI_MAX - real_truncate(&x) - (t->nice * 2);
+    t->priority = priority_bound(t->priority);
+}
+/*sets the nice value for thread t and update its priority*/
+static void
 set_nice_specific_thread(struct thread * t, int nice) {
   t->nice = nice;
   mlfqs_set_priority_for_specific_thread(t);
 }
 
-/*update the priority of given thread*/
-void 
-mlfqs_set_priority_for_specific_thread(struct thread * t){
-  struct real x;
-  x = div_real_int(&t->recent_cpu,4);
-  t->priority = PRI_MAX - real_truncate(&x) - (t->nice * 2);
-  t->priority = priority_bound(t->priority);
-}
+
 
 
 /* Sets the current thread's nice value to NICE. */

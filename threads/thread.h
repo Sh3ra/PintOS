@@ -26,7 +26,7 @@ struct list all_list;
 
 
 /* Idle thread. */
-static struct thread *idle_thread;
+struct thread *idle_thread;
 
 /*load average*/
 struct real load_avg;
@@ -172,8 +172,8 @@ void thread_foreach (thread_action_func *, void *);
 bool more_priority_cmp(const struct list_elem* a, const struct list_elem* b, void* aux UNUSED);
 int max(int a, int b);
 int get_priority_of_specific_thread(struct thread * t);
-int complete_search(struct thread * t, int depth);
 void reinsert_thread_in_list(struct thread *t, struct list *l);
+void mlfqs_set_priority_for_specific_thread(struct thread * t);
 int thread_get_priority (void);
 void thread_set_priority (int);
 

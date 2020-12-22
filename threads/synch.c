@@ -210,8 +210,10 @@ lock_acquire(struct lock *lock) {
     if(holder !=NULL) {
         thread_current()->lock_holder = holder;
         while (holder != NULL) {
+            int temp = holder->don_priority ;
             holder->don_priority = max(max(holder->don_priority, thread_current()->priority),
                                        thread_current()->don_priority);
+            if(holder->don_priority == temp)break ;
            if (holder->status == THREAD_READY) {
                 reinsert_thread_in_list(holder, &ready_list);
             } else if (holder->status == THREAD_BLOCKED && holder->blocking_sema_list != NULL) {
