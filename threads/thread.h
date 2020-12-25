@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/real.h"
+#include "synch.h"
 
 #define DEBUG 0
 #define DEBUG2 0
@@ -129,10 +130,11 @@ struct thread
     /* Shared between thread.c and synch.c. and timer.c */
     struct list_elem elem;              /* List element. */
 
-
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    struct semaphore childWaitSema;
+    struct thread *parent;
 #endif
 
     /* Owned by thread.c. */
