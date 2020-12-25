@@ -7,7 +7,6 @@ filesys
 lib
 misc
 tests
-userprog
 utils
 vm
 LICENSE
