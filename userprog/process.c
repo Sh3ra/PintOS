@@ -416,6 +416,30 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
     return true;
 }
 
+int cntSpc(char c[]) {
+    int count = 1, sz = strlen(c);
+    int i = 0;
+    while (i < sz && c[i] == ' ')i++;
+    for (; i < sz; i++) {
+        if(c[i] == ' ') {
+            count ++;
+            while (i < sz && c[i] == ' ')i++;
+            i--;
+        }
+    }
+    return count;
+}
+
+bool parseCmd(char c[], char *cmd[]) {
+    int idx = 0;
+    char *save_ptr;
+    cmd[idx] = strtok_r(c, " ",&save_ptr);
+    while (cmd[idx] != NULL) {
+        idx++;
+        cmd[idx] = strtok_r(NULL, " ",&save_ptr);
+    }
+}
+
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
@@ -423,13 +447,6 @@ setup_stack(void **esp, char *file_name) {
     uint8_t *kpage;
     bool success = false;
 
-    char *save_ptr, *token;
-    strtok_r(file_name, " ", &save_ptr);
-    int i = 0;
-    for (; token != NULL; token = strtok_r (NULL, " ", &save_ptr), ++i) {
-        *esp -= strlen(token);
-        memcpy(esp, token, strlen(token));
-    }
 
     kpage = palloc_get_page(PAL_USER | PAL_ZERO);
     if (kpage != NULL) {
@@ -439,6 +456,22 @@ setup_stack(void **esp, char *file_name) {
         else
             palloc_free_page(kpage);
     }
+    printf("here");
+    int cnt=cntSpc(file_name);
+    char *args[cnt+1];
+    parseCmd(file_name,args);
+    for (int i = strlen(args)-1; i >=0; i--)
+    {
+      if(args[i]!=NULL)
+      *esp -= strlen(args[i]);
+      memcpy(*esp, args[i], strlen(args[i]));
+    }
+    *esp-=4;
+    memset(*esp, 0, 4); 
+    int word_align=(int)(*esp)%4;
+    *esp -= word_align;
+    memset(*esp, 0, word_align);
+    hex_dump((uintptr_t)*esp,*esp, sizeof(char)*40, true);
     return success;
 }
 

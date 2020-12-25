@@ -556,7 +556,9 @@ init_thread(struct thread *t, const char *name, int priority, int recent_cpu_val
 
 #ifdef USERPROG
     sema_init(&t->childWaitSema, 0);
-    t->parent = thread_current();
+    if(list_size(&all_list)>0)
+        t->parent = thread_current();
+    else t->parent=NULL;
 #endif
     list_init(&t->my_locks);
     t->lock_holder = NULL;
