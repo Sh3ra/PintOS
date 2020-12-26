@@ -472,17 +472,22 @@ setup_stack(void **esp, char *file_name) {
     {
      if(args[i]!=NULL) {
          printf("entered once %d %s\n", i ,args[i]);
-         *esp -= strlen(args[i]);
-          memcpy(*esp, args[i], strlen(args[i]));
-      }
+         *esp -= strlen(args[i])+1;
+         printf("\n%d\n", *esp) ;
+         memcpy(*esp, args[i], strlen(args[i])+1);
+         printf("\n%d\n", *esp) ;
+     }
     }
     *esp-=4;
     memset(*esp, 0, 4); 
-    int word_align=(int)(*esp)%4;
-    printf("\n%d\n", *esp) ;
-    *esp -= word_align;
-    memset(*esp, 0, word_align);
-    //hex_dump((uintptr_t)*esp,*esp, sizeof(char)*40, true);
+    int word_align=(uintptr_t)(*esp)%(4*sizeof (char));
+    //printf("\n%d\n", *esp) ;
+    if(word_align >0) {
+        *esp -= word_align;
+        memset(*esp, 0, word_align);
+    }
+   // printf("\n%d\n", *esp) ;
+    hex_dump((uintptr_t)*esp ,*esp , sizeof(char)*20, true);
     printf("here's your shit,happy now ?\n");
     return success;
 }
