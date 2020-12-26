@@ -462,22 +462,27 @@ setup_stack(void **esp, char *file_name) {
         else
             palloc_free_page(kpage);
     }
-    printf("writing stack now\n");
+    printf("writing stack now\n%s\n",file_name);
     int cnt=cntSpc(file_name);
     char *args[cnt+1];
-    parseCmd(file_name,args);
-    for (int i = strlen(args)-1; i >=0; i--)
+    char *fn_copy = palloc_get_page(0);
+    strlcpy(fn_copy, file_name, PGSIZE);
+    parseCmd(fn_copy,args);
+    for (int i = cnt; i >=0; i--)
     {
-      if(args[i]!=NULL)
-      *esp -= strlen(args[i]);
-      memcpy(*esp, args[i], strlen(args[i]));
+     if(args[i]!=NULL) {
+         printf("entered once %d %s\n", i ,args[i]);
+         *esp -= strlen(args[i]);
+          memcpy(*esp, args[i], strlen(args[i]));
+      }
     }
     *esp-=4;
     memset(*esp, 0, 4); 
-    int word_align=(int)(esp)%4;
+    int word_align=(int)(*esp)%4;
+    printf("\n%d\n", *esp) ;
     *esp -= word_align;
     memset(*esp, 0, word_align);
-    hex_dump((uintptr_t)*esp,*esp, sizeof(char)*40, true);
+    //hex_dump((uintptr_t)*esp,*esp, sizeof(char)*40, true);
     printf("here's your shit,happy now ?\n");
     return success;
 }
