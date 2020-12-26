@@ -23,10 +23,11 @@ static thread_func start_process NO_RETURN;
 
 static bool load(const char *cmdline, void (**eip)(void), void **esp);
 
-void
-getName(const char *file_name, char *usr_program) {
-    char *save_ptr;
-    usr_program = strtok_r(file_name, " ", &save_ptr);
+char *
+getName(const char *file_name) {
+    char *save_ptr , *fn_copy = palloc_get_page(0);
+    strlcpy(fn_copy, file_name, PGSIZE);
+    return strtok_r(fn_copy, " ", &save_ptr);
 }
 
 /* Starts a new thread running a user program loaded from
@@ -35,9 +36,10 @@ getName(const char *file_name, char *usr_program) {
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
 process_execute(const char *file_name) {
-    char *fn_copy, *usr_program = NULL;
-    getName(file_name, usr_program);
+    char *fn_copy, *usr_program = NULL,*save_ptr;
+    usr_program=getName(file_name);
     if (usr_program == NULL) return TID_ERROR;
+    //for(;;);
     tid_t tid;
 
     /* Make a copy of FILE_NAME.
@@ -49,8 +51,10 @@ process_execute(const char *file_name) {
 
     /* Create a new thread to execute FILE_NAME. */
     tid = thread_create(usr_program, PRI_DEFAULT, start_process, fn_copy);
-    if (tid == TID_ERROR)
+    printf("fuck you");
+    if (tid == TID_ERROR) {
         palloc_free_page(fn_copy);
+    }
     return tid;
 }
 
@@ -61,7 +65,6 @@ start_process(void *file_name_) {
     char *file_name = file_name_;
     struct intr_frame if_;
     bool success;
-
     /* Initialize interrupt frame and load executable. */
     memset(&if_, 0, sizeof if_);
     if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -95,7 +98,9 @@ start_process(void *file_name_) {
    does nothing. */
 int
 process_wait(tid_t child_tid UNUSED) {
+    printf(" hey,Sema down now\n");
     sema_down(&thread_current()->childWaitSema);
+    printf(" hey,Sema up now\n");
     return 0;
 }
 
@@ -227,7 +232,9 @@ load(const char *file_name, void (**eip)(void), void **esp) {
 
     /* Open executable file. */
     char *usr_program = NULL;
-    getName(file_name, usr_program);
+    usr_program= getName(file_name);
+    if (usr_program == NULL) return false;
+    //for(;;);
     file = filesys_open(usr_program);
     if (file == NULL) {
         printf("load: %s: open failed\n", file_name);
@@ -447,7 +454,6 @@ setup_stack(void **esp, char *file_name) {
     uint8_t *kpage;
     bool success = false;
 
-
     kpage = palloc_get_page(PAL_USER | PAL_ZERO);
     if (kpage != NULL) {
         success = install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
@@ -456,7 +462,7 @@ setup_stack(void **esp, char *file_name) {
         else
             palloc_free_page(kpage);
     }
-    printf("here");
+    printf("writing stack now\n");
     int cnt=cntSpc(file_name);
     char *args[cnt+1];
     parseCmd(file_name,args);
@@ -468,10 +474,11 @@ setup_stack(void **esp, char *file_name) {
     }
     *esp-=4;
     memset(*esp, 0, 4); 
-    int word_align=(int)(*esp)%4;
+    int word_align=(int)(esp)%4;
     *esp -= word_align;
     memset(*esp, 0, word_align);
     hex_dump((uintptr_t)*esp,*esp, sizeof(char)*40, true);
+    printf("here's your shit,happy now ?\n");
     return success;
 }
 
