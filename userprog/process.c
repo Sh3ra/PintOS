@@ -51,7 +51,6 @@ process_execute(const char *file_name) {
 
     /* Create a new thread to execute FILE_NAME. */
     tid = thread_create(usr_program, PRI_DEFAULT, start_process, fn_copy);
-    printf("fuck you");
     if (tid == TID_ERROR) {
         palloc_free_page(fn_copy);
     }
@@ -98,9 +97,7 @@ start_process(void *file_name_) {
    does nothing. */
 int
 process_wait(tid_t child_tid UNUSED) {
-    printf(" hey,Sema down now\n");
     sema_down(&thread_current()->childWaitSema);
-    printf(" hey,Sema up now\n");
     return 0;
 }
 
@@ -462,8 +459,8 @@ setup_stack(void **esp, char *file_name) {
         else
             palloc_free_page(kpage);
     }
-    printf("writing stack now\n%s\n",file_name);
     int cnt=cntSpc(file_name);
+    int addresses[cnt+1];
     char *args[cnt+1];
     char *fn_copy = palloc_get_page(0);
     strlcpy(fn_copy, file_name, PGSIZE);
@@ -471,24 +468,34 @@ setup_stack(void **esp, char *file_name) {
     for (int i = cnt; i >=0; i--)
     {
      if(args[i]!=NULL) {
-         printf("entered once %d %s\n", i ,args[i]);
          *esp -= strlen(args[i])+1;
-         printf("\n%d\n", *esp) ;
+         addresses[i]=(*esp);
          memcpy(*esp, args[i], strlen(args[i])+1);
-         printf("\n%d\n", *esp) ;
      }
     }
     *esp-=4;
     memset(*esp, 0, 4); 
     int word_align=(uintptr_t)(*esp)%(4*sizeof (char));
-    //printf("\n%d\n", *esp) ;
     if(word_align >0) {
         *esp -= word_align;
         memset(*esp, 0, word_align);
     }
-   // printf("\n%d\n", *esp) ;
-    hex_dump((uintptr_t)*esp ,*esp , sizeof(char)*20, true);
-    printf("here's your shit,happy now ?\n");
+    for (int i = cnt-1; i >=0; i--)
+    {
+     if(addresses[i]!=NULL) {
+         *esp -= sizeof(char*);
+         memcpy(*esp, &addresses[i], sizeof(char*));
+     }
+    }
+    int add=*esp;
+    *esp -= sizeof(char**);
+    memcpy(*esp, &add, sizeof(char**));
+    
+    *esp-=4;
+    memcpy(*esp, &cnt, 4);
+    *esp-=4;
+    memset(*esp, 0, 4); 
+
     return success;
 }
 
