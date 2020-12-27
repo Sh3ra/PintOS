@@ -10,7 +10,7 @@ static void syscall_handler(struct intr_frame *);
 
 static uint32_t write(int fd, void *pVoid, unsigned int size);
 
-static void ourExit(int status);
+void ourExit(int status);
 
 static int open_file(char * curr_name);
 
@@ -30,8 +30,8 @@ syscall_init(void) {
 static void
 syscall_handler(struct intr_frame *f UNUSED) {
 
-    if (f->esp == NULL) {
-        thread_exit();
+    if (f->esp == NULL || pagedir_get_page(thread_current()->pagedir,f->esp) == NULL) {
+        ourExit(-1);
         //ToDo SYS_EXIT
         // يحيى و شعراوي بيضربوا بعض
     }
@@ -59,6 +59,7 @@ syscall_handler(struct intr_frame *f UNUSED) {
             break;
         }
         case SYS_CREATE: {
+
             char * curr_name = (char*)(*((int*)f->esp + 1));
             if(curr_name == NULL) {
               ourExit(-1);
@@ -148,7 +149,7 @@ static int open_file(char * curr_name) {
     }
 }
 
-static void ourExit(int status) {
+void ourExit(int status) {
     printf("%s: exit(%d)\n",thread_current()->name,status);
     thread_current()->parent->last_child_status = status;
     thread_exit();

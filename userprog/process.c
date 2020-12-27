@@ -36,8 +36,10 @@ getName(const char *file_name) {
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
 process_execute(const char *file_name) {
+    //printf("thread executing is %s\n", thread_current()->name );
+
     char *fn_copy, *usr_program = NULL,*save_ptr;
-    usr_program=getName(file_name);
+    usr_program = getName(file_name);
     if (usr_program == NULL) return TID_ERROR;
     //for(;;);
     tid_t tid;
@@ -70,7 +72,6 @@ start_process(void *file_name_) {
     if_.cs = SEL_UCSEG;
     if_.eflags = FLAG_IF | FLAG_MBS;
     success = load(file_name, &if_.eip, &if_.esp);
-
     /* If load failed, quit. */
     palloc_free_page(file_name);
     if (!success)
@@ -224,7 +225,6 @@ load(const char *file_name, void (**eip)(void), void **esp) {
     off_t file_ofs;
     bool success = false;
     int i;
-
     /* Allocate and activate page directory. */
     t->pagedir = pagedir_create();
     if (t->pagedir == NULL)
@@ -237,6 +237,7 @@ load(const char *file_name, void (**eip)(void), void **esp) {
     if (usr_program == NULL) return false;
     //for(;;);
     file = filesys_open(usr_program);
+
     if (file == NULL) {
         printf("load: %s: open failed\n", file_name);
         goto done;
