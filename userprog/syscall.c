@@ -115,7 +115,7 @@ syscall_handler(struct intr_frame *f UNUSED) {
             //run the syscall, a function of your own making
             //since this syscall returns a value, the return value should be stored in f->eax
             f->eax = read(fd, buffer, size);
-            printf("wanted %d read %d\n",size,f->eax);
+            //printf("wanted %d read %d\n",size,f->eax);
             break;
         }
         case SYS_WRITE: {
