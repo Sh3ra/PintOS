@@ -18,7 +18,7 @@ syscall_init(void) {
 
 static void
 syscall_handler(struct intr_frame *f UNUSED) {
-    if (pagedir_get_page(f->esp, 0x20101234) == NULL) {
+    if (f->esp == NULL) {
         thread_exit();
         //ToDo SYS_EXIT
         // يحيى و شعراوي بيضربوا بعض
@@ -78,7 +78,7 @@ syscall_handler(struct intr_frame *f UNUSED) {
 }
 
 static void ourExit(int status) {
-    printf("%s: exit(%d)",thread_current()->name,status);
+    printf("%s: exit(%d)\n",thread_current()->name,status);
     thread_exit();
 }
 
