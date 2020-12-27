@@ -10,6 +10,7 @@
 #include "filesys/filesys.h"
 #include "process.h"
 #include "filesys/file.h"
+
 struct semaphore write_syscall_sema;
 struct semaphore read_syscall_sema;
 
@@ -19,6 +20,7 @@ static uint32_t write(int fd, void *pVoid, unsigned int size);
 
 static uint32_t read(int fd, void *buffer, unsigned size);
 
+static uint32_t filesize(int fd);
 
 void ourExit(int status);
 
@@ -93,7 +95,6 @@ syscall_handler(struct intr_frame *f UNUSED) {
                 ourExit(-1);
             }
             f->eax = remove_file(curr_name);
-            //f->eax = filesys_remove(curr_name);
             break;
         }
         case SYS_OPEN: {
@@ -106,6 +107,8 @@ syscall_handler(struct intr_frame *f UNUSED) {
             break;
         }
         case SYS_FILESIZE: {
+            int fd = *((int *) f->esp + 1);
+            f->eax = filesize(fd);
             break;
         }
         case SYS_READ: {
@@ -148,12 +151,16 @@ syscall_handler(struct intr_frame *f UNUSED) {
 }
 
 
-struct list_elem *move_elem_ptr(struct list_elem *elem, int n) {
-    while (list_entry(elem, struct file, file_elem)->fd < n &&
-           elem != list_tail(&thread_current()->my_opened_files_list)) {
-        elem = elem->next;
+struct file *get_file(int fd) {
+    struct list_elem *file_elem = list_front(&thread_current()->my_opened_files_list);
+    while (list_entry(file_elem, struct file, file_elem)->fd < fd &&
+           file_elem != list_tail(&thread_current()->my_opened_files_list)) {
+        file_elem = file_elem->next;
     }
-    return elem;
+    if (file_elem != list_tail(&thread_current()->my_opened_files_list))
+        return list_entry(file_elem, struct file, file_elem);
+    else return NULL;
+
 }
 
 static tid_t execute(char *cmd_line) {
@@ -178,8 +185,6 @@ static int remove_file(char *curr_name) {
 
 static int open_file(char *curr_name) {
     struct file *curr_file = filesys_open(curr_name);
-   // struct thread_opened_file thread_file ;
-   // thread_file.file = curr_file;
     list_push_back(&thread_current()->my_opened_files_list, &curr_file->file_elem);
     if (curr_file != NULL) {
         thread_current()->fd++;
@@ -202,13 +207,8 @@ static uint32_t write(int fd, void *buffer, unsigned int size) {
         return size;
     } else if (fd == NULL || fd == 0 || list_empty(&thread_current()->my_opened_files_list))return 0;
     else {
-        struct list_elem *file_elem = list_front(&thread_current()->my_opened_files_list);
-        file_elem = move_elem_ptr(file_elem, fd);
-        if (file_elem != list_tail(&thread_current()->my_opened_files_list)) {
-            //struct thread_opened_file *tfile = list_entry(file_elem, struct file, file_elem);
-            struct file *file = list_entry(file_elem, struct file, file_elem);
-            return file_write(file, buffer, size);
-        }
+        struct file *file = get_file(fd);
+        if (file != NULL)return file_write(file, buffer, size);
     }
     return 0;
 }
@@ -226,36 +226,30 @@ static uint32_t read(int fd, void *buffer, unsigned size) {
         return size;
     } else if (fd == 1 || list_empty(&thread_current()->my_opened_files_list));
     else {
-        struct list_elem *file_elem = list_front(&thread_current()->my_opened_files_list);
-        file_elem = move_elem_ptr(file_elem, fd);
-        if (file_elem != list_tail(&thread_current()->my_opened_files_list)) {
-            //struct thread_opened_file *tfile = list_entry(file_elem, struct thread_opened_file, file_elem);
-            struct file *file = list_entry(file_elem, struct file, file_elem);
+        struct file *file = get_file(fd);
+        if (file != NULL)
             return file_read(file, buffer, size);
-        }
     }
     ourExit(-1);
-    return -1 ;
+    return -1;
+}
+
+uint32_t filesize(int fd) {
+    return 0 ;
 }
 
 static void seek(int fd, unsigned position) {
     if (fd == NULL || fd < 2 || list_empty(&thread_current()->my_opened_files_list))return;
-    struct list_elem *file_elem = list_front(&thread_current()->my_opened_files_list);
-    file_elem = move_elem_ptr(file_elem, fd);
-    if (file_elem != list_tail(&thread_current()->my_opened_files_list)) {
-        struct file *file = list_entry(file_elem, struct file, file_elem);
+    struct file *file = get_file(fd);
+    if (file != NULL)
         file_seek(file, position);
-    }
 }
 
 static void close_file(int fd) {
     if (fd < 2 || list_empty(&thread_current()->my_opened_files_list))return;
-    struct list_elem *file_elem = list_front(&thread_current()->my_opened_files_list);
-    file_elem = move_elem_ptr(file_elem, fd);
-    if (file_elem != list_tail(&thread_current()->my_opened_files_list)) {
-        // struct thread_opened_file *tfile = list_entry(file_elem, struct thread_opened_file, file_elem);
-        struct file *file = list_entry(file_elem, struct file, file_elem);
-        list_remove(file_elem);
+    struct file *file = get_file(fd);
+    if (file != NULL) {
+        list_remove(&file->file_elem);
         file_close(file);
     }
 }
