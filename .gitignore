@@ -13,4 +13,3 @@ Make.config
 Makefile
 Makefile.kernel
 Makefile.userprog
-Makefile.build
