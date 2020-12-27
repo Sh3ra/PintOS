@@ -68,13 +68,12 @@ syscall_handler(struct intr_frame *f UNUSED) {
         case SYS_HALT: {
             //  printf("halt\n");
             shutdown_power_off();
-            break;
         }
         case SYS_EXIT: {
             //printf("exit\n");
             if (!valid(p + 1))
                 kill();
-            int status = *((int *) f->esp + 1);
+            int status = *((int *) f->esp +1);
             ourExit(status);
             break;
         }
@@ -116,7 +115,6 @@ syscall_handler(struct intr_frame *f UNUSED) {
             }
 
             f->eax = remove_file(curr_name);
-            //f->eax = filesys_remove(curr_name);
             break;
         }
         case SYS_OPEN: {
