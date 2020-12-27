@@ -120,19 +120,23 @@ struct thread
     int nice;                           /* Nice value for thread */
 
     struct list_elem allelem;           /* List element for all threads list. */
-    
+
     struct real recent_cpu;             /* Thread's recent cpu */
 
     struct list my_locks ;              /* List of locks the thread holds */
     struct list * blocking_sema_list;   /* Pointer to the waiters list for the blocking sema*/
     struct thread *lock_holder ;        /* Pointer to the Thread Thats holds the lock that caused the blocking*/
-
+    int fd;
+    struct lock exec_lock;
     /* Shared between thread.c and synch.c. and timer.c */
     struct list_elem elem;              /* List element. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    struct list children_list;
+    struct list child_list_elem;
+    struct lock child_exec;
     struct semaphore childWaitSema;
     struct thread *parent;
 #endif

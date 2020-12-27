@@ -553,11 +553,14 @@ init_thread(struct thread *t, const char *name, int priority, int recent_cpu_val
     t->stack = (uint8_t *) t + PGSIZE;
     t->priority = priority;
     t->don_priority = 0;
-
+    t->fd = 1;
 #ifdef USERPROG
+    lock_init(&t->child_exec);
+    list_init(&t->children_list);
     sema_init(&t->childWaitSema, 0);
-    if(list_size(&all_list)>0)
-        t->parent = thread_current();
+    if(list_size(&all_list)>0) {
+      t->parent = thread_current();
+    }
     else t->parent=NULL;
 #endif
     list_init(&t->my_locks);
