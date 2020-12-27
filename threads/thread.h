@@ -136,7 +136,8 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
     int last_child_status;
     struct list children_list;
-    struct list child_list_elem;
+    struct list_elem child_list_elem;
+    struct list my_opened_files_list ;
     int block_parent;
     struct semaphore childWaitSema;
     struct thread *parent;
@@ -145,6 +146,11 @@ struct thread
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
+struct thread_opened_file{
+    struct file* file ;
+    struct list_elem file_elem; /*file_elem for threads_opened_files_list*/
+    int fd ;
+};
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.

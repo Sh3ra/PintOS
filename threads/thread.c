@@ -559,6 +559,7 @@ init_thread(struct thread *t, const char *name, int priority, int recent_cpu_val
     t->don_priority = 0;
 #ifdef USERPROG
     list_init(&t->children_list);
+    list_init(&t->my_opened_files_list);
     t->block_parent = 0;
     t->fd = 1;
     sema_init(&t->childWaitSema, 0);

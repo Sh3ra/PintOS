@@ -1,90 +1,106 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <devices/input.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "pagedir.h"
 #include "filesys/off_t.h"
+#include "devices/shutdown.h"
+#include "filesys/filesys.h"
+#include "process.h"
+
+struct semaphore write_syscall_sema;
+struct semaphore read_syscall_sema;
 
 static void syscall_handler(struct intr_frame *);
 
 static uint32_t write(int fd, void *pVoid, unsigned int size);
 
+static uint32_t read(int fd, void *buffer, unsigned size);
+
+
 void ourExit(int status);
 
-static int open_file(char * curr_name);
+static int open_file(char *curr_name);
 
-static int create_file(char * curr_name, off_t initial_size);
+static void close_file(int fd);
 
-static int remove_file(char * curr_name);
+static bool create_file(char *curr_name, off_t initial_size);
+
+static int remove_file(char *curr_name);
+
+static void seek(int fd, unsigned position);
 
 static int wait(tid_t pid);
 
-static tid_t execute(char * cmd_line);
+static tid_t execute(char *cmd_line);
 
 void
 syscall_init(void) {
     intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
+    sema_init(&write_syscall_sema, 1);
+    sema_init(&read_syscall_sema, 1);
 }
 
 static void
 syscall_handler(struct intr_frame *f UNUSED) {
-
-    if (f->esp == NULL || pagedir_get_page(thread_current()->pagedir,f->esp) == NULL) {
+    if (f->esp == NULL || pagedir_get_page(thread_current()->pagedir, f->esp) == NULL) {
         ourExit(-1);
         //ToDo SYS_EXIT
         // يحيى و شعراوي بيضربوا بعض
     }
+
     switch (*(int *) f->esp) {
         case SYS_HALT: {
             shutdown_power_off();
             break;
         }
         case SYS_EXIT: {
-            int status = *((int*)f->esp + 1);
+            int status = *((int *) f->esp + 1);
             ourExit(status);
             break;
         }
         case SYS_EXEC: {
-            char* cmd_line = (char*)(*((int*)f->esp + 1));
-            if(cmd_line == NULL) {
-              ourExit(-1);
+            char *cmd_line = (char *) (*((int *) f->esp + 1));
+            if (cmd_line == NULL) {
+                ourExit(-1);
             }
             f->eax = execute(cmd_line);
             break;
         }
         case SYS_WAIT: {
-            tid_t child_pid = (tid_t*)(*((int*)f->esp + 1));
+            tid_t child_pid = (tid_t *) (*((int *) f->esp + 1));
             f->eax = wait(child_pid);
             break;
         }
         case SYS_CREATE: {
 
-            char * curr_name = (char*)(*((int*)f->esp + 1));
-            if(curr_name == NULL) {
-              ourExit(-1);
+            char *curr_name = (char *) (*((int *) f->esp + 1));
+            if (curr_name == NULL) {
+                ourExit(-1);
             }
-            off_t initial_size = (off_t*)(*((int*)f->esp + 2));
+            off_t initial_size = (off_t *) (*((int *) f->esp + 2));
             f->eax = create_file(curr_name, initial_size);
             break;
         }
         case SYS_REMOVE: {
-            char * curr_name = (char*)(*((int*)f->esp + 1));
-            if(curr_name == NULL) {
-              ourExit(-1);
+            char *curr_name = (char *) (*((int *) f->esp + 1));
+            if (curr_name == NULL) {
+                ourExit(-1);
             }
-            if(curr_name == NULL) {
-              ourExit(-1);
+            if (curr_name == NULL) {
+                ourExit(-1);
             }
             f->eax = remove_file(curr_name);
-            f->eax = filesys_remove(curr_name);
+            //f->eax = filesys_remove(curr_name);
             break;
         }
         case SYS_OPEN: {
-            char* curr_name = (char*)(*((int*)f->esp + 1));
-            if(curr_name == NULL) {
-              f->eax = -1;
-              return;
+            char *curr_name = (char *) (*((int *) f->esp + 1));
+            if (curr_name == NULL) {
+                f->eax = -1;
+                return;
             }
             f->eax = open_file(curr_name);
             break;
@@ -93,24 +109,36 @@ syscall_handler(struct intr_frame *f UNUSED) {
             break;
         }
         case SYS_READ: {
+            int fd = *((int *) f->esp + 1);
+            void *buffer = (void *) (*((int *) f->esp + 2));
+            unsigned size = *((unsigned *) f->esp + 3);
+            //run the syscall, a function of your own making
+            //since this syscall returns a value, the return value should be stored in f->eax
+            f->eax = read(fd, buffer, size);
+            printf("wanted %d read %d\n",size,f->eax);
             break;
         }
         case SYS_WRITE: {
-            int fd = *((int*)f->esp + 1);
-            void* buffer = (void*)(*((int*)f->esp + 2));
-            unsigned size = *((unsigned*)f->esp + 3);
+            int fd = *((int *) f->esp + 1);
+            void *buffer = (void *) (*((int *) f->esp + 2));
+            unsigned size = *((unsigned *) f->esp + 3);
             //run the syscall, a function of your own making
             //since this syscall returns a value, the return value should be stored in f->eax
             f->eax = write(fd, buffer, size);
             break;
         }
         case SYS_SEEK: {
+            int fd = *((int *) f->esp + 1);
+            unsigned position = *((unsigned *) f->esp + 2);
+            seek(fd, position);
             break;
         }
         case SYS_TELL: {
             break;
         }
         case SYS_CLOSE: {
+            int fd = *((int *) f->esp + 1);
+            close_file(fd);
             break;
         }
         default: {
@@ -119,30 +147,43 @@ syscall_handler(struct intr_frame *f UNUSED) {
     }
 }
 
-static tid_t execute(char * cmd_line) {
-  tid_t pid = process_execute(cmd_line);
-  struct thread * t = get_process_with_specific_tid(pid);
-  if(t==NULL) return -1;
-  list_push_back(&thread_current() -> children_list,  &t->child_list_elem);
-  return pid;
+
+struct list_elem *move_elem_ptr(struct list_elem *elem, int n) {
+    while (list_entry(elem, struct thread_opened_file, file_elem)->fd < n &&
+           elem != list_tail(&thread_current()->my_opened_files_list)) {
+        elem = elem->next;
+    }
+    return elem;
 }
 
-static int wait(tid_t pid){
-  return process_wait(pid);
+static tid_t execute(char *cmd_line) {
+    tid_t pid = process_execute(cmd_line);
+    struct thread *t = get_process_with_specific_tid(pid);
+    if (t == NULL) return -1;
+    list_push_back(&thread_current()->children_list, &t->child_list_elem);
+    return pid;
 }
 
-static int create_file(char * curr_name, off_t initial_size) {
-        return filesys_create(curr_name,initial_size);
+static int wait(tid_t pid) {
+    return process_wait(pid);
 }
 
-static int remove_file(char * curr_name) {
-        return filesys_create(curr_name);
+static bool create_file(char *curr_name, off_t initial_size) {
+    return filesys_create(curr_name, initial_size);
 }
 
-static int open_file(char * curr_name) {
-    struct file * curr_file = filesys_open(curr_name);
-    if(curr_file != NULL) {
+static int remove_file(char *curr_name) {
+    return filesys_remove(curr_name);
+}
+
+static int open_file(char *curr_name) {
+    struct file *curr_file = filesys_open(curr_name);
+    struct thread_opened_file thread_file;
+    thread_file.file = curr_file;
+    list_push_back(&thread_current()->my_opened_files_list, &thread_file.file_elem);
+    if (curr_file != NULL) {
         thread_current()->fd++;
+        thread_file.fd = thread_current()->fd;
         return thread_current()->fd;
     } else {
         return -1;
@@ -150,7 +191,7 @@ static int open_file(char * curr_name) {
 }
 
 void ourExit(int status) {
-    printf("%s: exit(%d)\n",thread_current()->name,status);
+    printf("%s: exit(%d)\n", thread_current()->name, status);
     thread_current()->parent->last_child_status = status;
     thread_exit();
 }
@@ -159,6 +200,62 @@ static uint32_t write(int fd, void *buffer, unsigned int size) {
     if (fd == 1) {
         putbuf(buffer, size);
         return size;
+    } else if (fd == NULL || fd == 0 || list_empty(&thread_current()->my_opened_files_list))return 0;
+    else {
+        struct list_elem *file_elem = list_front(&thread_current()->my_opened_files_list);
+        file_elem = move_elem_ptr(file_elem, fd);
+        if (file_elem != list_tail(&thread_current()->my_opened_files_list)) {
+            struct thread_opened_file *tfile = list_entry(file_elem, struct thread_opened_file, file_elem);
+            struct file *file = tfile->file;
+            return file_write(file, buffer, size);
+        }
     }
     return 0;
+}
+
+static void read_helper(void *buffer, unsigned int size) {
+    while (size-- > 0) {
+        *(uint8_t *) buffer = input_getc();
+        buffer++;
+    }
+}
+
+static uint32_t read(int fd, void *buffer, unsigned size) {
+    if (fd == 0) {
+        read_helper(buffer, size);
+        return size;
+    } else if (fd == 1 || list_empty(&thread_current()->my_opened_files_list));
+    else {
+        struct list_elem *file_elem = list_front(&thread_current()->my_opened_files_list);
+        file_elem = move_elem_ptr(file_elem, fd);
+        if (file_elem != list_tail(&thread_current()->my_opened_files_list)) {
+            struct thread_opened_file *tfile = list_entry(file_elem, struct thread_opened_file, file_elem);
+            struct file *file = tfile->file;
+            return file_read(file, buffer, size);
+        }
+    }
+    ourExit(-1);
+    return -1 ;
+}
+
+static void seek(int fd, unsigned position) {
+    if (fd == NULL || fd < 2 || list_empty(&thread_current()->my_opened_files_list))return;
+    struct list_elem *file_elem = list_front(&thread_current()->my_opened_files_list);
+    file_elem = move_elem_ptr(file_elem, fd);
+    if (file_elem != list_tail(&thread_current()->my_opened_files_list)) {
+        struct file *file = list_entry(file_elem, struct thread_opened_file, file_elem)->file;
+        file_seek(file, position);
+    }
+}
+
+static void close_file(int fd) {
+    if (fd < 2 || list_empty(&thread_current()->my_opened_files_list))return;
+    struct list_elem *file_elem = list_front(&thread_current()->my_opened_files_list);
+    file_elem = move_elem_ptr(file_elem, fd);
+    if (file_elem != list_tail(&thread_current()->my_opened_files_list)) {
+        struct thread_opened_file *tfile = list_entry(file_elem, struct thread_opened_file, file_elem);
+        struct file *file = tfile->file;
+        file_close(file);
+        list_remove(file_elem);
+    }
 }
