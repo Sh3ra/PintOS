@@ -145,13 +145,13 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
-  };
+  };/*
 struct thread_opened_file{
     struct file* file ;
-    struct list_elem file_elem; /*file_elem for threads_opened_files_list*/
+    struct list_elem file_elem; //file_elem for threads_opened_files_list
     int fd ;
 };
-
+*/
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */

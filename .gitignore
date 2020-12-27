@@ -3,7 +3,6 @@ cscope.out
 TAGS
 tags
 examples
-filesys
 lib
 misc
 tests
@@ -14,3 +13,4 @@ Make.config
 Makefile
 Makefile.kernel
 Makefile.userprog
+Makefile.build
