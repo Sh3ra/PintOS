@@ -134,9 +134,10 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    int last_child_status;
     struct list children_list;
     struct list child_list_elem;
-    struct lock child_exec;
+    int block_parent;
     struct semaphore childWaitSema;
     struct thread *parent;
 #endif
@@ -182,7 +183,7 @@ void reinsert_thread_in_list(struct thread *t, struct list *l);
 void mlfqs_set_priority_for_specific_thread(struct thread * t);
 int thread_get_priority (void);
 void thread_set_priority (int);
-
+struct thread * get_process_with_specific_tid (tid_t tid);
 int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);

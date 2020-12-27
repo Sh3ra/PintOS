@@ -69,6 +69,8 @@ static tid_t allocate_tid(void);
 
 int max(int a, int b);
 
+struct thread * get_process_with_specific_tid (tid_t tid);
+
 int get_priority_of_specific_thread(struct thread *t);
 
 /* Initializes the threading system by transforming the code
@@ -335,7 +337,9 @@ thread_exit(void) {
     ASSERT(!intr_context());
 
 #ifdef USERPROG
-    sema_up(&thread_current()->parent->childWaitSema);
+    if(thread_current()->block_parent) {
+      sema_up(&thread_current()->parent->childWaitSema);
+    }
     process_exit ();
 #endif
 
@@ -553,10 +557,10 @@ init_thread(struct thread *t, const char *name, int priority, int recent_cpu_val
     t->stack = (uint8_t *) t + PGSIZE;
     t->priority = priority;
     t->don_priority = 0;
-    t->fd = 1;
 #ifdef USERPROG
-    lock_init(&t->child_exec);
     list_init(&t->children_list);
+    t->block_parent = 0;
+    t->fd = 1;
     sema_init(&t->childWaitSema, 0);
     if(list_size(&all_list)>0) {
       t->parent = thread_current();
@@ -679,6 +683,20 @@ allocate_tid(void) {
     lock_release(&tid_lock);
 
     return tid;
+}
+
+struct thread * get_process_with_specific_tid (tid_t tid){
+  struct thread * t;
+  for (struct list_elem *iter = list_begin(&all_list);
+       iter != list_end(&all_list);
+       iter = list_next(iter))
+  {
+    if(tid == list_entry(iter, struct thread, allelem)->tid) {
+      t = list_entry(iter, struct thread, allelem);
+      return t;
+    }
+  }
+  return NULL;
 }
 
 /* Offset of `stack' member within `struct thread'.

@@ -50,12 +50,12 @@ syscall_handler(struct intr_frame *f UNUSED) {
             if(cmd_line == NULL) {
               ourExit(-1);
             }
-            //f->eax = execute(cmd_line);
+            f->eax = execute(cmd_line);
             break;
         }
         case SYS_WAIT: {
             tid_t child_pid = (tid_t*)(*((int*)f->esp + 1));
-            //f->eax = wait(child_pid);
+            f->eax = wait(child_pid);
             break;
         }
         case SYS_CREATE: {
@@ -118,20 +118,6 @@ syscall_handler(struct intr_frame *f UNUSED) {
     }
 }
 
-static struct thread * get_process_with_specific_tid (tid_t tid){
-  struct thread * t;
-  for (struct list_elem *iter = list_begin(&all_list);
-       iter != list_end(&all_list);
-       iter = list_next(iter))
-  {
-    if(tid == list_entry(iter, struct thread, allelem)->tid) {
-      t = list_entry(iter, struct thread, allelem);
-      return t;
-    }
-  }
-  return NULL;
-}
-
 static tid_t execute(char * cmd_line) {
   tid_t pid = process_execute(cmd_line);
   struct thread * t = get_process_with_specific_tid(pid);
@@ -141,9 +127,7 @@ static tid_t execute(char * cmd_line) {
 }
 
 static int wait(tid_t pid){
-  struct thread * t = get_process_with_specific_tid(pid);
-  if(t == NULL || t->parent != thread_current())
-    return -1;
+  return process_wait(pid);
 }
 
 static int create_file(char * curr_name, off_t initial_size) {
@@ -166,6 +150,7 @@ static int open_file(char * curr_name) {
 
 static void ourExit(int status) {
     printf("%s: exit(%d)\n",thread_current()->name,status);
+    thread_current()->parent->last_child_status = status;
     thread_exit();
 }
 

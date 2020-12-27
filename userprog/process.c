@@ -86,7 +86,7 @@ start_process(void *file_name_) {
     NOT_REACHED ();
 }
 
-/* Waits for thread TID to die and returns its exit status.  If
+/* Waits for thread TID to die and returns its exit  .  If
    it was terminated by the kernel (i.e. killed due to an
    exception), returns -1.  If TID is invalid or if it was not a
    child of the calling process, or if process_wait() has already
@@ -97,8 +97,12 @@ start_process(void *file_name_) {
    does nothing. */
 int
 process_wait(tid_t child_tid UNUSED) {
+    struct thread * t = get_process_with_specific_tid(child_tid);
+    if(t == NULL || t->parent != thread_current() || t->block_parent == 1)
+      return -1;
+    t->block_parent = 1;
     sema_down(&thread_current()->childWaitSema);
-    return 0;
+    return thread_current()->last_child_status;
 }
 
 /* Free the current process's resources. */
@@ -474,7 +478,7 @@ setup_stack(void **esp, char *file_name) {
      }
     }
     *esp-=4;
-    memset(*esp, 0, 4); 
+    memset(*esp, 0, 4);
     int word_align=(uintptr_t)(*esp)%(4*sizeof (char));
     if(word_align >0) {
         *esp -= word_align;
@@ -490,11 +494,11 @@ setup_stack(void **esp, char *file_name) {
     int add=*esp;
     *esp -= sizeof(char**);
     memcpy(*esp, &add, sizeof(char**));
-    
+
     *esp-=4;
     memcpy(*esp, &cnt, 4);
     *esp-=4;
-    memset(*esp, 0, 4); 
+    memset(*esp, 0, 4);
 
     return success;
 }
