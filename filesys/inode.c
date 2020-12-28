@@ -6,7 +6,7 @@
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
-
+#include <stdio.h>
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
 
@@ -261,7 +261,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   const uint8_t *buffer = buffer_;
   off_t bytes_written = 0;
   uint8_t *bounce = NULL;
-
+  //printf("inode %d" , inode->deny_write_cnt);
   if (inode->deny_write_cnt)
     return 0;
 

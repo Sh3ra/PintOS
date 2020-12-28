@@ -243,12 +243,12 @@ load(const char *file_name, void (**eip)(void), void **esp) {
     if (usr_program == NULL) return false;
     //for(;;);
     file = filesys_open(usr_program);
-
     if (file == NULL) {
         printf("load: %s: open failed\n", file_name);
         goto done;
     }
-
+    file_deny_write(file);
+    //printf("%d\n" ,file->deny_write);
     /* Read and verify executable header. */
     if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr
         || memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -324,7 +324,7 @@ load(const char *file_name, void (**eip)(void), void **esp) {
 
     done:
     /* We arrive here whether the load is successful or not. */
-    file_close(file);
+    //file_close(file); //TODO removed this line to stop decrementing deny inode write counter
     return success;
 }
 

@@ -12,8 +12,7 @@
 #include "filesys/file.h"
 #include "threads/vaddr.h"
 
-struct semaphore write_syscall_sema;
-struct semaphore read_syscall_sema;
+struct semaphore write_syscall_sema,read_syscall_sema;
 
 static void syscall_handler(struct intr_frame *);
 
@@ -276,7 +275,7 @@ static int open_file(char *curr_name)
     if (!is_valid_ptr(curr_name))
         kill();
     int res = -1;
-    lock_acquire(&filesys_lock);
+    //lock_acquire(&filesys_lock);
     struct file *curr_file = filesys_open(curr_name);
     if (curr_file != NULL)
     {
@@ -286,7 +285,7 @@ static int open_file(char *curr_name)
         res = thread_current()->fd;
     }
 
-    lock_release(&filesys_lock);
+   // lock_release(&filesys_lock);
     return res;
 }
 
@@ -332,7 +331,7 @@ static uint32_t write(int fd, void *buffer, unsigned int size)
         }
     }
     int res = 0;
-    lock_acquire(&filesys_lock);
+    //lock_acquire(&filesys_lock);
     //printf("horray");
     if (fd == 1)
     {
@@ -347,10 +346,15 @@ static uint32_t write(int fd, void *buffer, unsigned int size)
     else
     {
         struct file *file = get_file(fd);
-        if (file != NULL)
+        if (file != NULL) {
+            sema_down(&write_syscall_sema);
+            //printf("file %d\n" ,file->deny_write);
             res = file_write(file, buffer, size);
+            //printf("%d\n",res);
+            sema_up(&write_syscall_sema);
+        }
     }
-    lock_release(&filesys_lock);
+    //lock_release(&filesys_lock);
     return res;
 }
 
@@ -401,9 +405,13 @@ static uint32_t read(int fd, void *buffer, unsigned size)
     else
     {
         struct file *file = get_file(fd);
-        if (file != NULL)
-            return file_read(file, buffer, size);
-    }
+        if (file != NULL) {
+            sema_down(&read_syscall_sema);
+            int result_size = file_read(file, buffer, size);
+            sema_up(&read_syscall_sema);
+            return result_size ;
+        }
+        }
     ourExit(-1);
     return -1;
 }
@@ -411,43 +419,43 @@ static uint32_t read(int fd, void *buffer, unsigned size)
 uint32_t filesize(int fd)
 {
     int res = -1;
-    lock_acquire(&filesys_lock);
+    //lock_acquire(&filesys_lock);
     struct file *file = get_file(fd);
     if (file != NULL)
         res = file_length(file);
-    lock_release(&filesys_lock);
+   // lock_release(&filesys_lock);
     //ourExit(-1);
     return res;
 }
 
 static void seek(int fd, unsigned position)
 {
-    lock_acquire(&filesys_lock);
+    //lock_acquire(&filesys_lock);
     struct file *file = get_file(fd);
     if (file != NULL)
         file_seek(file, position);
-    lock_release(&filesys_lock);
+   // lock_release(&filesys_lock);
 }
 
 static uint32_t tell(int fd)
 {
     int res = 0;
-    lock_acquire(&filesys_lock);
+    //lock_acquire(&filesys_lock);
     struct file *file = get_file(fd);
     if (file != NULL)
         res = file_tell(file);
-    lock_release(&filesys_lock);
+    //lock_release(&filesys_lock);
     return res;
 }
 
 static void close_file(int fd)
 {
-    lock_acquire(&filesys_lock);
+    //lock_acquire(&filesys_lock);
     struct file *file = get_file(fd);
     if (file != NULL)
     {
         list_remove(&file->file_elem);
         file_close(file);
     }
-    lock_release(&filesys_lock);
+    //lock_release(&filesys_lock);
 }
