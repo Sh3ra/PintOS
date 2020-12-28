@@ -43,6 +43,7 @@ static uint32_t tell(int fd);
 
 void syscall_init(void)
 {
+    lock_init(&filesys_lock);
     intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
     sema_init(&write_syscall_sema, 1);
     sema_init(&read_syscall_sema, 1);
@@ -87,7 +88,7 @@ syscall_handler(struct intr_frame *f UNUSED)
     {
     case SYS_HALT:
     {
-        //printf("halt\n");
+      //  printf("halt\n");
         shutdown_power_off();
     }
     case SYS_EXIT:
@@ -113,7 +114,7 @@ syscall_handler(struct intr_frame *f UNUSED)
     }
     case SYS_CREATE:
     {
-        // printf("create\n");
+        //printf("create\n");
         char *curr_name = (char *)(*((int *)f->esp + 1));
         if (curr_name == NULL)
         {
@@ -180,7 +181,7 @@ syscall_handler(struct intr_frame *f UNUSED)
     }
     case SYS_SEEK:
     {
-        // printf("seek\n");
+        //printf("seek\n");
         int fd = *((int *)f->esp + 1);
         unsigned position = *((unsigned *)f->esp + 2);
         seek(fd, position);
@@ -189,7 +190,7 @@ syscall_handler(struct intr_frame *f UNUSED)
     case SYS_TELL:
     {
         //printf("tell\n");
-        int fd = *((int *) f->esp + 1);
+        int fd = *((int *)f->esp + 1);
         f->eax = tell(fd);
         break;
     }
@@ -248,32 +249,41 @@ static bool create_file(char *curr_name, off_t initial_size)
 {
     if (!is_valid_ptr(curr_name))
         kill();
-    return filesys_create(curr_name, initial_size);
+    bool res;
+    lock_acquire(&filesys_lock);
+    res = filesys_create(curr_name, initial_size);
+    lock_release(&filesys_lock);
+    return res;
 }
 
 static int remove_file(char *curr_name)
 {
     if (!is_valid_ptr(curr_name))
         kill();
-    return filesys_remove(curr_name);
+    int res;
+    lock_acquire(&filesys_lock);
+    res = filesys_remove(curr_name);
+    lock_release(&filesys_lock);
+    return res;
 }
 
 static int open_file(char *curr_name)
 {
     if (!is_valid_ptr(curr_name))
         kill();
+    int res = -1;
+    lock_acquire(&filesys_lock);
     struct file *curr_file = filesys_open(curr_name);
     if (curr_file != NULL)
     {
         list_push_back(&thread_current()->my_opened_files_list, &curr_file->file_elem);
         thread_current()->fd++;
         curr_file->fd = thread_current()->fd;
-        return thread_current()->fd;
+        res = thread_current()->fd;
     }
-    else
-    {
-        return -1;
-    }
+
+    lock_release(&filesys_lock);
+    return res;
 }
 
 void ourExit(int status)
@@ -285,20 +295,55 @@ void ourExit(int status)
 
 static uint32_t write(int fd, void *buffer, unsigned int size)
 {
-    if (!is_valid_ptr(buffer))
-        kill();
+    unsigned buffer_size = size;
+    void *buffer_tmp = buffer;
+
+    /* check the user memory pointing by buffer are valid */
+    while (buffer_tmp != NULL)
+    {
+        //printf("hey");
+        if (!is_valid_ptr(buffer_tmp))
+            kill();
+
+        /* Advance */
+        if (buffer_size > PGSIZE)
+        {
+            buffer_tmp += PGSIZE;
+            buffer_size -= PGSIZE;
+        }
+        else if (buffer_size == 0)
+        {
+            /* terminate the checking loop */
+            buffer_tmp = NULL;
+        }
+        else
+        {
+            /* last loop */
+            buffer_tmp = buffer + size - 1;
+            buffer_size = 0;
+        }
+    }
+    int res = 0;
+    lock_acquire(&filesys_lock);
+    //printf("horray");
     if (fd == 1)
     {
         putbuf(buffer, size);
-        return size;
+        res = size;
     }
+    else if (fd == 0)
+    {
+        res = -1;
+    }
+
     else
     {
         struct file *file = get_file(fd);
         if (file != NULL)
-            return file_write(file, buffer, size);
+            res = file_write(file, buffer, size);
     }
-    return 0;
+    lock_release(&filesys_lock);
+    return res;
 }
 
 static void read_helper(void *buffer, unsigned int size)
@@ -331,34 +376,44 @@ static uint32_t read(int fd, void *buffer, unsigned size)
 
 uint32_t filesize(int fd)
 {
+    int res = -1;
+    lock_acquire(&filesys_lock);
     struct file *file = get_file(fd);
     if (file != NULL)
-        return file_length(file);
-    ourExit(-1);
+        res = file_length(file);
+    lock_release(&filesys_lock);
+    //ourExit(-1);
+    return res;
 }
 
 static void seek(int fd, unsigned position)
 {
+    lock_acquire(&filesys_lock);
     struct file *file = get_file(fd);
     if (file != NULL)
         file_seek(file, position);
-    else
-        ourExit(-1);
+    lock_release(&filesys_lock);
 }
 
-static uint32_t tell(int fd) {
+static uint32_t tell(int fd)
+{
+    int res = 0;
+    lock_acquire(&filesys_lock);
     struct file *file = get_file(fd);
     if (file != NULL)
-        return file_tell(file);
-    else ourExit(-1);
+        res = file_tell(file);
+    lock_release(&filesys_lock);
+    return res;
 }
 
 static void close_file(int fd)
 {
+    lock_acquire(&filesys_lock);
     struct file *file = get_file(fd);
     if (file != NULL)
     {
         list_remove(&file->file_elem);
         file_close(file);
     }
+    lock_release(&filesys_lock);
 }
