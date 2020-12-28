@@ -39,6 +39,8 @@ static int wait(tid_t pid);
 
 static tid_t execute(char *cmd_line);
 
+static uint32_t tell(int fd);
+
 void syscall_init(void)
 {
     intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
@@ -187,6 +189,8 @@ syscall_handler(struct intr_frame *f UNUSED)
     case SYS_TELL:
     {
         //printf("tell\n");
+        int fd = *((int *) f->esp + 1);
+        f->eax = tell(fd);
         break;
     }
     case SYS_CLOSE:
@@ -340,6 +344,13 @@ static void seek(int fd, unsigned position)
         file_seek(file, position);
     else
         ourExit(-1);
+}
+
+static uint32_t tell(int fd) {
+    struct file *file = get_file(fd);
+    if (file != NULL)
+        return file_tell(file);
+    else ourExit(-1);
 }
 
 static void close_file(int fd)
