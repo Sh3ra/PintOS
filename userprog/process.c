@@ -37,7 +37,6 @@ getName(const char *file_name) {
 tid_t
 process_execute(const char *file_name) {
     //printf("thread executing is %s\n", thread_current()->name );
-
     char *fn_copy, *usr_program = NULL,*save_ptr;
     usr_program = getName(file_name);
     if (usr_program == NULL) return TID_ERROR;
@@ -74,8 +73,14 @@ start_process(void *file_name_) {
     success = load(file_name, &if_.eip, &if_.esp);
     /* If load failed, quit. */
     palloc_free_page(file_name);
-    if (!success)
-        thread_exit();
+    if(thread_current()->parent != initial_thread && success) {
+      sema_up(&thread_current()->parent->start_process_sema);
+    }
+
+    if (!success) {
+        ourExit(-1);
+    }
+
 
     /* Start the user process by simulating a return from an
        interrupt, implemented by intr_exit (in
@@ -99,8 +104,9 @@ start_process(void *file_name_) {
 int
 process_wait(tid_t child_tid UNUSED) {
     struct thread * t = get_process_with_specific_tid(child_tid);
-    if(t == NULL || t->parent != thread_current() || t->block_parent == 1)
+    if(t == NULL || t->parent != thread_current() || t->block_parent == 1) {
       return -1;
+    }
     t->block_parent = 1;
     sema_down(&thread_current()->childWaitSema);
     return thread_current()->last_child_status;

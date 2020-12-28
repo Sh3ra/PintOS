@@ -1,5 +1,6 @@
 #ifndef USERPROG_SYSCALL_H
 #define USERPROG_SYSCALL_H
+
 void syscall_init (void);
 void ourExit(int status);
 struct lock filesys_lock;

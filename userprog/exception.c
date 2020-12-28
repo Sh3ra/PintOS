@@ -149,15 +149,18 @@ page_fault(struct intr_frame *f)
    write = (f->error_code & PF_W) != 0;
    user = (f->error_code & PF_U) != 0;
 
-   if (!not_present)
-      ourExit(-1);
+   if (!not_present) {
+     ourExit(-1);
+   }
 
-   if (fault_addr == NULL || !not_present || !is_user_vaddr(fault_addr))
-      ourExit(-1);
-   struct thread *cur = thread_current();
-   if (!pagedir_get_page(cur->pagedir, fault_addr))
-      ourExit(-1);
-   /* To implement virtual memory, delete the rest of the function
+   if (fault_addr == NULL || !not_present || !is_user_vaddr(fault_addr)) {
+     ourExit(-1);
+   }
+     struct thread *cur = thread_current();
+   if (!pagedir_get_page(cur->pagedir, fault_addr)) {
+     ourExit(-1);
+   }
+    /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
    printf("Page fault at %p: %s error %s page in %s context.\n",

@@ -558,13 +558,15 @@ init_thread(struct thread *t, const char *name, int priority, int recent_cpu_val
     t->priority = priority;
     t->don_priority = 0;
 #ifdef USERPROG
-    list_init(&t->children_list);
+    sema_init(&t->start_process_sema, 0);
     list_init(&t->my_opened_files_list);
+    t->bad = 0;
     t->block_parent = 0;
     t->fd = 1;
     sema_init(&t->childWaitSema, 0);
     if(list_size(&all_list)>0) {
       t->parent = thread_current();
+      t->depth = t->parent->depth + 1;
     }
     else t->parent=NULL;
 #endif

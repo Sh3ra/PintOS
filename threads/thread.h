@@ -10,9 +10,11 @@
 #define DEBUG 0
 #define DEBUG2 0
 #define MAX_DEPTH 10
+#define MAX_DEPTH_FOR_CHILD 40
 
 /* Initial thread, the thread running init.c:main().*/
 struct thread *initial_thread;
+
 
 /*List of sleeping threads*/
 struct list sleeping_threads;
@@ -135,10 +137,11 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
     int last_child_status;
-    struct list children_list;
-    struct list_elem child_list_elem;
+    int depth;
+    struct semaphore start_process_sema;
     struct list my_opened_files_list ;
     int block_parent;
+    int bad;
     struct semaphore childWaitSema;
     struct thread *parent;
 #endif

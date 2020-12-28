@@ -228,15 +228,19 @@ struct file *get_file(int fd)
 
 static tid_t execute(char *cmd_line)
 {
+    if(thread_current()->depth > MAX_DEPTH_FOR_CHILD) return -1;
     if (!is_valid_ptr(cmd_line))
     {
         kill();
     }
+
     tid_t pid = process_execute(cmd_line);
+    //printf("thread_going down %s sema value is %d\n", thread_current()->name, thread_current()->start_process_sema.value );
+
     struct thread *t = get_process_with_specific_tid(pid);
-    if (t == NULL)
+    sema_down(&thread_current()->start_process_sema);
+    if (t == NULL || t->bad == 1)
         return -1;
-    list_push_back(&thread_current()->children_list, &t->child_list_elem);
     return pid;
 }
 
@@ -290,6 +294,10 @@ void ourExit(int status)
 {
     printf("%s: exit(%d)\n", thread_current()->name, status);
     thread_current()->parent->last_child_status = status;
+    if(thread_current()->parent != initial_thread) {
+      thread_current()->bad = 1;
+      sema_up(&thread_current()->parent->start_process_sema);
+    }
     thread_exit();
 }
 
