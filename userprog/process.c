@@ -246,8 +246,10 @@ load(const char *file_name, void (**eip)(void), void **esp) {
     if (file == NULL) {
         printf("load: %s: open failed\n", file_name);
         goto done;
+    }else {
+        file_deny_write(file);
+        t->my_exec_file = file ;
     }
-    file_deny_write(file);
     //printf("%d\n" ,file->deny_write);
     /* Read and verify executable header. */
     if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -324,7 +326,7 @@ load(const char *file_name, void (**eip)(void), void **esp) {
 
     done:
     /* We arrive here whether the load is successful or not. */
-    //file_close(file); //TODO removed this line to stop decrementing deny inode write counter
+    //file_close(file); //moved this line to syscall.c/our_exit() to stop decrementing deny inode write counter until the excutable finishes
     return success;
 }
 

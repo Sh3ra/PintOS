@@ -138,12 +138,13 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
     int last_child_status;
     int depth;
-    struct semaphore start_process_sema;
-    struct list my_opened_files_list ;
     int block_parent;
     int bad;
     struct semaphore childWaitSema;
     struct thread *parent;
+    struct semaphore start_process_sema;
+    struct list my_opened_files_list ;
+    struct file * my_exec_file ;
 #endif
 
     /* Owned by thread.c. */
