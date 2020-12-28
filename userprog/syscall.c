@@ -46,7 +46,7 @@ void syscall_init(void) {
 }
 
 /* Checks for validity of a user address
-   It should be below PHYS_BASE and 
+   It should be below PHYS_BASE and
    registered in page directory */
 static bool valid(void *vaddr) {
     return (is_user_vaddr(vaddr) &&
@@ -255,7 +255,7 @@ static uint32_t write(int fd, void *buffer, unsigned int size) {
         return size;
     } else {
         struct file *file = get_file(fd);
-        if (file != NULL)return file_write(file, buffer, size);
+         if (file != NULL)return file_write(file, buffer, size);
     }
     return 0;
 }
