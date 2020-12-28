@@ -357,8 +357,34 @@ static void read_helper(void *buffer, unsigned int size)
 
 static uint32_t read(int fd, void *buffer, unsigned size)
 {
-    if (!is_valid_ptr(buffer))
-        kill();
+    unsigned buffer_size = size;
+    void *buffer_tmp = buffer;
+
+    /* check the user memory pointing by buffer are valid */
+    while (buffer_tmp != NULL)
+    {
+        //printf("hey");
+        if (!is_valid_ptr(buffer_tmp))
+            kill();
+
+        /* Advance */
+        if (buffer_size > PGSIZE)
+        {
+            buffer_tmp += PGSIZE;
+            buffer_size -= PGSIZE;
+        }
+        else if (buffer_size == 0)
+        {
+            /* terminate the checking loop */
+            buffer_tmp = NULL;
+        }
+        else
+        {
+            /* last loop */
+            buffer_tmp = buffer + size - 1;
+            buffer_size = 0;
+        }
+    }
     if (fd == 0)
     {
         read_helper(buffer, size);
