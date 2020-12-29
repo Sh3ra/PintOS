@@ -451,18 +451,20 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
     return true;
 }
 
-int cntSpc(char c[]) {
-    int count = 1, sz = strlen(c);
-    int i = 0;
-    while (i < sz && c[i] == ' ')i++;
-    for (; i < sz; i++) {
-        if(c[i] == ' ') {
-            count ++;
-            while (i < sz && c[i] == ' ')i++;
-            i--;
+int countWords(char str[]) {
+    int nw = 0;
+    int space = 1;
+    for(int i = 0; i < strlen(str); i++) {
+        //if enncounter space set boolean to one
+        if(str[i] == ' ') {
+            space = 1;
+        } else if(space == 1) {
+            //if a new space is encountered after a word increment the word count
+            space = 0;
+            nw++;
         }
     }
-    return count;
+    return nw;
 }
 
 bool parseCmd(char c[], char *cmd[]) {
@@ -490,7 +492,7 @@ setup_stack(void **esp, char *file_name) {
         else
             palloc_free_page(kpage);
     }
-    int cnt=cntSpc(file_name);
+    int cnt=countWords(file_name);
     int addresses[cnt+1];
     char *args[cnt+1];
     char *fn_copy = palloc_get_page(0);
