@@ -102,6 +102,7 @@ syscall_handler(struct intr_frame *f UNUSED)
         //printf("exec\n");
         char *cmd_line = (char *)(*((int *)f->esp + 1));
         f->eax = execute(cmd_line);
+
         break;
     }
     case SYS_WAIT:
@@ -225,14 +226,14 @@ struct file *get_file(int fd)
         return NULL;
 }
 
+
 static tid_t execute(char *cmd_line)
 {
-    if(thread_current()->depth > MAX_DEPTH_FOR_CHILD) return -1;
     if (!is_valid_ptr(cmd_line))
     {
         kill();
     }
-
+    lock_acquire(&open_lock);
     tid_t pid = process_execute(cmd_line);
     //printf("thread_going down %s sema value is %d\n", thread_current()->name, thread_current()->start_process_sema.value );
 
@@ -240,6 +241,12 @@ static tid_t execute(char *cmd_line)
     sema_down(&thread_current()->start_process_sema);
     if (t == NULL || t->bad == 1)
         return -1;
+    struct child_process *cp=malloc(sizeof(struct child_process));
+    cp->tid = t->tid;
+    cp->exit_status = -100;
+    cp->waitedNo = 0;
+    list_push_front(&thread_current()->my_children_list, &cp->my_child_elem);
+    lock_release(&open_lock);
     return pid;
 }
 
@@ -276,7 +283,9 @@ static int open_file(char *curr_name)
         kill();
     int res = -1;
     //lock_acquire(&filesys_lock);
+    lock_acquire(&open_lock);
     struct file *curr_file = filesys_open(curr_name);
+    lock_release(&open_lock);
     if (curr_file != NULL)
     {
         list_push_back(&thread_current()->my_opened_files_list, &curr_file->file_elem);
@@ -289,10 +298,23 @@ static int open_file(char *curr_name)
     return res;
 }
 
+
+void set_exit_status_for_child_in_parent(int tid, int exit_status){
+    struct thread * t = thread_current()->parent;
+    for (struct list_elem *iterator = list_begin(&t->my_children_list);
+         iterator != list_end(&t->my_children_list);
+         iterator = list_next(iterator))
+    {
+      if(tid == list_entry(iterator, struct child_process, my_child_elem)->tid) {
+        list_entry(iterator, struct child_process, my_child_elem)->exit_status = exit_status;
+      }
+    }
+}
+
 void ourExit(int status)
 {
     printf("%s: exit(%d)\n", thread_current()->name, status);
-    thread_current()->parent->last_child_status = status;
+    set_exit_status_for_child_in_parent(thread_current()->tid, status);
     if(thread_current()->parent != initial_thread) {
       thread_current()->bad = 1;
       sema_up(&thread_current()->parent->start_process_sema);
@@ -350,6 +372,7 @@ static uint32_t write(int fd, void *buffer, unsigned int size)
         if (file != NULL) {
             sema_down(&write_syscall_sema);
             //printf("file %d\n" ,file->deny_write);
+
             res = file_write(file, buffer, size);
             //printf("%d\n",res);
             sema_up(&write_syscall_sema);
@@ -408,7 +431,9 @@ static uint32_t read(int fd, void *buffer, unsigned size)
         struct file *file = get_file(fd);
         if (file != NULL) {
             sema_down(&read_syscall_sema);
+            lock_acquire(&open_lock);
             int result_size = file_read(file, buffer, size);
+            lock_release(&open_lock);
             sema_up(&read_syscall_sema);
             return result_size ;
         }

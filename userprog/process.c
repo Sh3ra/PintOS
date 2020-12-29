@@ -92,6 +92,24 @@ start_process(void *file_name_) {
     NOT_REACHED ();
 }
 
+
+int getStatusOfChild(tid_t tid, int check){
+  struct thread * t = thread_current();
+  for (struct list_elem *iterator = list_begin(&t->my_children_list);
+       iterator != list_end(&t->my_children_list);
+       iterator = list_next(iterator))
+  {
+    struct child_process * cp =list_entry(iterator, struct child_process, my_child_elem);
+    if(tid == cp->tid) {
+      int status = cp->exit_status;
+      if(check && cp->waitedNo) return -1;
+      cp->waitedNo++;
+      return status;
+    }
+  }
+  return -1;
+}
+
 /* Waits for thread TID to die and returns its exit  .  If
    it was terminated by the kernel (i.e. killed due to an
    exception), returns -1.  If TID is invalid or if it was not a
@@ -103,13 +121,13 @@ start_process(void *file_name_) {
    does nothing. */
 int
 process_wait(tid_t child_tid UNUSED) {
+    int exit_status = getStatusOfChild(child_tid, 1);
+    if(exit_status != -100 && thread_current() != initial_thread) return exit_status;
     struct thread * t = get_process_with_specific_tid(child_tid);
-    if(t == NULL || t->parent != thread_current() || t->block_parent == 1) {
-      return -1;
-    }
     t->block_parent = 1;
     sema_down(&thread_current()->childWaitSema);
-    return thread_current()->last_child_status;
+    exit_status = getStatusOfChild(child_tid, 0);
+    return exit_status;
 }
 
 /* Free the current process's resources. */

@@ -90,6 +90,7 @@ void
 thread_init(void) {
     ASSERT(intr_get_level() == INTR_OFF);
     lock_init(&tid_lock);
+    lock_init(&open_lock);
     list_init(&ready_list);
     list_init(&all_list);
     list_init(&sleeping_threads);
@@ -557,6 +558,7 @@ init_thread(struct thread *t, const char *name, int priority, int recent_cpu_val
     t->stack = (uint8_t *) t + PGSIZE;
     t->priority = priority;
     t->don_priority = 0;
+    list_init(&t->my_children_list);
 #ifdef USERPROG
     sema_init(&t->start_process_sema, 0);
     list_init(&t->my_opened_files_list);

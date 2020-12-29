@@ -10,11 +10,10 @@
 #define DEBUG 0
 #define DEBUG2 0
 #define MAX_DEPTH 10
-#define MAX_DEPTH_FOR_CHILD 40
 
 /* Initial thread, the thread running init.c:main().*/
 struct thread *initial_thread;
-
+struct lock open_lock;
 
 /*List of sleeping threads*/
 struct list sleeping_threads;
@@ -109,6 +108,9 @@ typedef int tid_t;
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
+
+
+
 struct thread
   {
     /* Owned by thread.c. */
@@ -133,10 +135,10 @@ struct thread
     /* Shared between thread.c and synch.c. and timer.c */
     struct list_elem elem;              /* List element. */
 
+    struct list my_children_list;
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    int last_child_status;
     int depth;
     int block_parent;
     int bad;
@@ -149,6 +151,14 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+  };
+
+
+  struct child_process {
+      tid_t tid;
+      int exit_status;
+      struct list_elem my_child_elem;
+      int waitedNo;
   };
 
 /* If false (default), use round-robin scheduler.
