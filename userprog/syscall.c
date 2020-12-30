@@ -244,7 +244,9 @@ static tid_t execute(char *cmd_line)
     //printf("thread_going down %s sema value is %d\n", thread_current()->name, thread_current()->start_process_sema.value );
 
     struct thread *t = get_process_with_specific_tid(pid);
+    if(DEBUGYAHIA)printf("semaphore going down\n");
     sema_down(&thread_current()->start_process_sema);
+    if(DEBUGYAHIA)printf("ran away from semaphore\n");
     if (t == NULL || t->bad == 1)
         return -1;
     struct child_process *cp=malloc(sizeof(struct child_process));
@@ -265,9 +267,7 @@ static bool create_file(char *curr_name, off_t initial_size)
     if (!is_valid_ptr(curr_name))
         kill();
     bool res;
-    lock_acquire(&filesys_lock);
     res = filesys_create(curr_name, initial_size);
-    lock_release(&filesys_lock);
     return res;
 }
 
@@ -276,9 +276,7 @@ static int remove_file(char *curr_name)
     if (!is_valid_ptr(curr_name))
         kill();
     int res;
-    lock_acquire(&filesys_lock);
     res = filesys_remove(curr_name);
-    lock_release(&filesys_lock);
     return res;
 }
 

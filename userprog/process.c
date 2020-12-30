@@ -37,17 +37,22 @@ getName(const char *file_name) {
 tid_t
 process_execute(const char *file_name) {
     //printf("thread executing is %s\n", thread_current()->name );
+    if(DEBUGYAHIA) printf("start OF child process_execute\n");
     char *fn_copy, *usr_program = NULL,*save_ptr;
     usr_program = getName(file_name);
     if (usr_program == NULL) return TID_ERROR;
     //for(;;);
     tid_t tid;
-
     /* Make a copy of FILE_NAME.
        Otherwise there's a race between the caller and load(). */
     fn_copy = palloc_get_page(0);
-    if (fn_copy == NULL)
+    if(DEBUGYAHIA) printf("process_execute fn_copy == NULL\n");
+    if (fn_copy == NULL) {
+        if(DEBUGYAHIA) printf("MonkaHMMMMMM\n");
+        sema_up(&thread_current()->start_process_sema);
         return TID_ERROR;
+    }
+    if(DEBUGYAHIA) printf("process_execute after fn_copy == NULL\n");
     strlcpy(fn_copy, file_name, PGSIZE);
 
     /* Create a new thread to execute FILE_NAME. */
@@ -62,6 +67,7 @@ process_execute(const char *file_name) {
    running. */
 static void
 start_process(void *file_name_) {
+    if(DEBUGYAHIA) printf("start OF child start_process\n");
     char *file_name = file_name_;
     struct intr_frame if_;
     bool success;
@@ -70,14 +76,17 @@ start_process(void *file_name_) {
     if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
     if_.cs = SEL_UCSEG;
     if_.eflags = FLAG_IF | FLAG_MBS;
+    if(DEBUGYAHIA)printf("before load\n");
     if(thread_current()->depth >MAX_CHILD_DEPTH) {
       success = false;
     } else {
       success = load(file_name, &if_.eip, &if_.esp);
     }
+    if(DEBUGYAHIA)printf("after load\n");
     /* If load failed, quit. */
     palloc_free_page(file_name);
     if(thread_current()->parent != initial_thread && success) {
+      if(DEBUGYAHIA)printf("sema up called start process\n");
       sema_up(&thread_current()->parent->start_process_sema);
     }
 
@@ -130,7 +139,6 @@ process_wait(tid_t child_tid UNUSED) {
     struct thread * t = get_process_with_specific_tid(child_tid);
     t->block_parent = 1;
     if(lock_held_by_current_thread(&open_lock)) {
-      if(DEBUGYAHIA) printf("released lock wait\n");
       lock_release(&open_lock);
     }
     sema_down(&thread_current()->childWaitSema);
@@ -497,13 +505,19 @@ setup_stack(void **esp, char *file_name) {
         success = install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
         if (success)
             *esp = PHYS_BASE;
-        else
+        else{
             palloc_free_page(kpage);
+            return success;
+       }
     }
     int cnt=countWords(file_name);
-    int addresses[cnt+1];
-    char *args[cnt+1];
+    int * addresses = malloc( (cnt+1) * sizeof(int));
+    char ** args = malloc((cnt+1) * sizeof(char*));
     char *fn_copy = palloc_get_page(0);
+    if(fn_copy == NULL) {
+      palloc_free_page(kpage);
+      return false;
+    }
     strlcpy(fn_copy, file_name, PGSIZE);
     parseCmd(fn_copy,args);
     for (int i = cnt; i >=0; i--)
@@ -536,6 +550,9 @@ setup_stack(void **esp, char *file_name) {
     memcpy(*esp, &cnt, 4);
     *esp-=4;
     memset(*esp, 0, 4);
+
+    free(args);
+    free(addresses);
 
     return success;
 }
