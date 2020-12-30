@@ -36,29 +36,19 @@ getName(const char *file_name) {
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
 process_execute(const char *file_name) {
-    //printf("thread executing is %s\n", thread_current()->name );
     if(DEBUGYAHIA) printf("start OF child process_execute\n");
-    char *fn_copy, *usr_program = NULL,*save_ptr;
-    usr_program = getName(file_name);
-    if (usr_program == NULL) return TID_ERROR;
-    //for(;;);
     tid_t tid;
-    /* Make a copy of FILE_NAME.
-       Otherwise there's a race between the caller and load(). */
-    fn_copy = palloc_get_page(0);
-    if(DEBUGYAHIA) printf("process_execute fn_copy == NULL\n");
-    if (fn_copy == NULL) {
-        if(DEBUGYAHIA) printf("MonkaHMMMMMM\n");
-        sema_up(&thread_current()->start_process_sema);
-        return TID_ERROR;
-    }
-    if(DEBUGYAHIA) printf("process_execute after fn_copy == NULL\n");
-    strlcpy(fn_copy, file_name, PGSIZE);
+    char *fn_copy=malloc(strlen(file_name)+1);
+    char *usr_program=malloc(strlen(file_name)+1);
+    strlcpy(fn_copy,file_name,strlen(file_name)+1);
+    strlcpy(usr_program,file_name,strlen(file_name)+1);
+    char * save_ptr;
+    usr_program = strtok_r(usr_program," ",&save_ptr);
 
-    /* Create a new thread to execute FILE_NAME. */
     tid = thread_create(usr_program, PRI_DEFAULT, start_process, fn_copy);
+    free(usr_program);
     if (tid == TID_ERROR) {
-        palloc_free_page(fn_copy);
+        free(fn_copy);
     }
     return tid;
 }
@@ -84,13 +74,14 @@ start_process(void *file_name_) {
     }
     if(DEBUGYAHIA)printf("after load\n");
     /* If load failed, quit. */
-    palloc_free_page(file_name);
+    free(file_name);
     if(thread_current()->parent != initial_thread && success) {
       if(DEBUGYAHIA)printf("sema up called start process\n");
       sema_up(&thread_current()->parent->start_process_sema);
     }
 
     if (!success) {
+        if(DEBUG2) printf("exit called in start process\n");
         ourExit(-1);
     }
 
@@ -134,24 +125,51 @@ int getStatusOfChild(tid_t tid, int check){
    does nothing. */
 int
 process_wait(tid_t child_tid UNUSED) {
+    if(DEBUG2) printf("in wait\n");
     int exit_status = getStatusOfChild(child_tid, 1);
+    if(DEBUG2) printf("exit status when leaving first point is %d\n", exit_status);
     if(exit_status != -100 && thread_current() != initial_thread) return exit_status;
+    if(DEBUG2) printf("exit status first not triggered\n");
     struct thread * t = get_process_with_specific_tid(child_tid);
     t->block_parent = 1;
     if(lock_held_by_current_thread(&open_lock)) {
+      if(DEBUG2) printf("lock released in exit\n");
       lock_release(&open_lock);
     }
     sema_down(&thread_current()->childWaitSema);
+    if(DEBUG2) printf("got out of semadown\n");
     exit_status = getStatusOfChild(child_tid, 0);
+    if(DEBUG2) printf("exit status when leaving last point is %d\n", exit_status);
+    if(DEBUG2) printf("thread name is %s thread %d set his status to %d\n", thread_current()->name,thread_current()->tid, exit_status);
     return exit_status;
 }
 
+void free_all_children_close_all_files() {
+  struct thread * t = thread_current();
+
+  struct list * l = &thread_current()->my_opened_files_list;
+  for (struct list_elem * e = list_begin(l); e != list_end(l);
+       e = list_next(e)) {
+      struct file * f = list_entry(e, struct file, file_elem);
+      e = list_next(e);
+      file_close(f);
+  }
+
+  l = &thread_current()->my_children_list;
+  for (struct list_elem * e = list_begin(l); e != list_end(l);
+       e = list_next(e)) {
+      struct child_process * cp = list_entry(e, struct child_process, my_child_elem);
+      e = list_next(e);
+      free(cp);
+  }
+
+}
 /* Free the current process's resources. */
 void
 process_exit(void) {
     struct thread *cur = thread_current();
     uint32_t *pd;
-
+    //free_all_children_close_all_files();
     /* Destroy the current process's page directory and switch back
        to the kernel-only page directory. */
     pd = cur->pagedir;

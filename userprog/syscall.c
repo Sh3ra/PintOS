@@ -69,6 +69,7 @@ bool is_valid_ptr(const void *usr_ptr)
 /* Exits the process with -1 status */
 static void kill()
 {
+if(DEBUG2) printf("exit called in kill\n");
     ourExit(-1);
 }
 static uint32_t *esp;
@@ -97,6 +98,7 @@ syscall_handler(struct intr_frame *f UNUSED)
     {
         if(DEBUG)printf("exit\n");
         int status = *((int *)f->esp + 1);
+        if(DEBUG2) printf("exit called in exit\n");
         ourExit(status);
         break;
     }
@@ -121,6 +123,7 @@ syscall_handler(struct intr_frame *f UNUSED)
         char *curr_name = (char *)(*((int *)f->esp + 1));
         if (curr_name == NULL)
         {
+        if(DEBUG2) printf("exit called in create\n");
             ourExit(-1);
         }
         off_t initial_size = (off_t *)(*((int *)f->esp + 2));
@@ -133,6 +136,7 @@ syscall_handler(struct intr_frame *f UNUSED)
         char *curr_name = (char *)(*((int *)f->esp + 1));
         if (curr_name == NULL)
         {
+        if(DEBUG2) printf("exit called in remove\n");
             ourExit(-1);
         }
 
@@ -146,6 +150,7 @@ syscall_handler(struct intr_frame *f UNUSED)
         if (curr_name == NULL)
         {
             f->eax = -1;
+            if(DEBUG2) printf("exit called in open\n");
             ourExit(-1);
         }
         f->eax = open_file(curr_name);
@@ -315,6 +320,7 @@ void set_exit_status_for_child_in_parent(int tid, int exit_status){
 void ourExit(int status)
 {
     printf("%s: exit(%d)\n", thread_current()->name, status);
+    if(DEBUG2) printf("thread %d set his status to %d\n", thread_current()->tid, status);
     set_exit_status_for_child_in_parent(thread_current()->tid, status);
     if(thread_current()->parent != initial_thread) {
       thread_current()->bad = 1;
@@ -441,6 +447,8 @@ static uint32_t read(int fd, void *buffer, unsigned size)
             return result_size ;
         }
         }
+
+    if(DEBUG2) printf("exit called in read\n");
     ourExit(-1);
     return -1;
 }
