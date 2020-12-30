@@ -171,7 +171,7 @@ lock_init(struct lock *lock) {
 }
 
 /* Get maximum donation from waiters of lock lock */
-int 
+int
 get_donation(struct lock *lock) {
     struct list *waiters = &lock->semaphore.waiters;
     int maxi = 0;

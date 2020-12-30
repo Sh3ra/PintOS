@@ -8,6 +8,7 @@
 #include "synch.h"
 
 #define DEBUG 0
+#define DEBUGYAHIA 0
 #define DEBUG2 0
 #define MAX_DEPTH 10
 

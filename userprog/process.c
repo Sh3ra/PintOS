@@ -18,9 +18,9 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-
+#define MAX_CHILD_DEPTH 31
 static thread_func start_process NO_RETURN;
-
+#define MAX_CHILD_DEPTH 31
 static bool load(const char *cmdline, void (**eip)(void), void **esp);
 
 char *
@@ -70,7 +70,11 @@ start_process(void *file_name_) {
     if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
     if_.cs = SEL_UCSEG;
     if_.eflags = FLAG_IF | FLAG_MBS;
-    success = load(file_name, &if_.eip, &if_.esp);
+    if(thread_current()->depth >MAX_CHILD_DEPTH) {
+      success = false;
+    } else {
+      success = load(file_name, &if_.eip, &if_.esp);
+    }
     /* If load failed, quit. */
     palloc_free_page(file_name);
     if(thread_current()->parent != initial_thread && success) {
@@ -125,6 +129,10 @@ process_wait(tid_t child_tid UNUSED) {
     if(exit_status != -100 && thread_current() != initial_thread) return exit_status;
     struct thread * t = get_process_with_specific_tid(child_tid);
     t->block_parent = 1;
+    if(lock_held_by_current_thread(&open_lock)) {
+      if(DEBUGYAHIA) printf("released lock wait\n");
+      lock_release(&open_lock);
+    }
     sema_down(&thread_current()->childWaitSema);
     exit_status = getStatusOfChild(child_tid, 0);
     return exit_status;

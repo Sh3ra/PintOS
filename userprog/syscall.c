@@ -75,7 +75,6 @@ static uint32_t *esp;
 static void
 syscall_handler(struct intr_frame *f UNUSED)
 {
-    //printf("syscall\n");
     esp = f->esp;
 
     if (!is_valid_ptr(esp) || !is_valid_ptr(esp + 1) ||
@@ -83,23 +82,27 @@ syscall_handler(struct intr_frame *f UNUSED)
     {
         kill();
     }
+    if(DEBUGYAHIA) printf("trying to acquire lock\n");
+    if(DEBUGYAHIA)printf("syscall is %d\n", *(int *)f->esp);
+    lock_acquire(&open_lock);
+    if(DEBUGYAHIA) printf("acquired lock\n");
     switch (*(int *)f->esp)
     {
     case SYS_HALT:
     {
-      //  printf("halt\n");
+    if(DEBUG)  printf("halt\n");
         shutdown_power_off();
     }
     case SYS_EXIT:
     {
-        //printf("exit\n");
+        if(DEBUG)printf("exit\n");
         int status = *((int *)f->esp + 1);
         ourExit(status);
         break;
     }
     case SYS_EXEC:
     {
-        //printf("exec\n");
+      if(DEBUG)printf("exec\n");
         char *cmd_line = (char *)(*((int *)f->esp + 1));
         f->eax = execute(cmd_line);
 
@@ -107,14 +110,14 @@ syscall_handler(struct intr_frame *f UNUSED)
     }
     case SYS_WAIT:
     {
-        //printf("wait\n");
+        if(DEBUG)printf("wait\n");
         tid_t child_pid = (tid_t *)(*((int *)f->esp + 1));
         f->eax = wait(child_pid);
         break;
     }
     case SYS_CREATE:
     {
-        //printf("create\n");
+        if(DEBUG)printf("create\n");
         char *curr_name = (char *)(*((int *)f->esp + 1));
         if (curr_name == NULL)
         {
@@ -126,7 +129,7 @@ syscall_handler(struct intr_frame *f UNUSED)
     }
     case SYS_REMOVE:
     {
-        //printf("remove\n");
+        if(DEBUG)printf("remove\n");
         char *curr_name = (char *)(*((int *)f->esp + 1));
         if (curr_name == NULL)
         {
@@ -138,26 +141,26 @@ syscall_handler(struct intr_frame *f UNUSED)
     }
     case SYS_OPEN:
     {
-        //printf("open\n");
+        if(DEBUG)printf("open\n");
         char *curr_name = (char *)(*((int *)f->esp + 1));
         if (curr_name == NULL)
         {
             f->eax = -1;
-            return;
+            ourExit(-1);
         }
         f->eax = open_file(curr_name);
         break;
     }
     case SYS_FILESIZE:
     {
-        //printf("filesize\n");
+        if(DEBUG)printf("filesize\n");
         int fd = *((int *)f->esp + 1);
         f->eax = filesize(fd);
         break;
     }
     case SYS_READ:
     {
-        //printf("read\n");
+        if(DEBUG)printf("read\n");
         int fd = *((int *)f->esp + 1);
         void *buffer = (void *)(*((int *)f->esp + 2));
         unsigned size = *((unsigned *)f->esp + 3);
@@ -169,7 +172,7 @@ syscall_handler(struct intr_frame *f UNUSED)
     }
     case SYS_WRITE:
     {
-        //printf("write\n");
+        if(DEBUG)printf("write\n");
         int fd = *((int *)f->esp + 1);
         void *buffer = (void *)(*((int *)f->esp + 2));
         unsigned size = *((unsigned *)f->esp + 3);
@@ -181,7 +184,7 @@ syscall_handler(struct intr_frame *f UNUSED)
     }
     case SYS_SEEK:
     {
-        //printf("seek\n");
+        if(DEBUG)printf("seek\n");
         int fd = *((int *)f->esp + 1);
         unsigned position = *((unsigned *)f->esp + 2);
         seek(fd, position);
@@ -189,14 +192,14 @@ syscall_handler(struct intr_frame *f UNUSED)
     }
     case SYS_TELL:
     {
-        //printf("tell\n");
+        if(DEBUG)printf("tell\n");
         int fd = *((int *)f->esp + 1);
         f->eax = tell(fd);
         break;
     }
     case SYS_CLOSE:
     {
-        //printf("close\n");
+        if(DEBUG)printf("close\n");
         int fd = *((int *)f->esp + 1);
         close_file(fd);
         break;
@@ -206,6 +209,10 @@ syscall_handler(struct intr_frame *f UNUSED)
         //printf("default\n");
         kill();
     }
+    }
+    if(lock_held_by_current_thread(&open_lock)) {
+      if(DEBUGYAHIA) printf("released lock lock\n");
+      lock_release(&open_lock);
     }
 }
 
@@ -233,7 +240,6 @@ static tid_t execute(char *cmd_line)
     {
         kill();
     }
-    lock_acquire(&open_lock);
     tid_t pid = process_execute(cmd_line);
     //printf("thread_going down %s sema value is %d\n", thread_current()->name, thread_current()->start_process_sema.value );
 
@@ -246,7 +252,6 @@ static tid_t execute(char *cmd_line)
     cp->exit_status = -100;
     cp->waitedNo = 0;
     list_push_front(&thread_current()->my_children_list, &cp->my_child_elem);
-    lock_release(&open_lock);
     return pid;
 }
 
@@ -283,9 +288,7 @@ static int open_file(char *curr_name)
         kill();
     int res = -1;
     //lock_acquire(&filesys_lock);
-    lock_acquire(&open_lock);
     struct file *curr_file = filesys_open(curr_name);
-    lock_release(&open_lock);
     if (curr_file != NULL)
     {
         list_push_back(&thread_current()->my_opened_files_list, &curr_file->file_elem);
@@ -320,6 +323,10 @@ void ourExit(int status)
       sema_up(&thread_current()->parent->start_process_sema);
     }
     file_close(thread_current()->my_exec_file); //close file that was opened in process.c/load function to decrement deny-inode-write again
+    if(lock_held_by_current_thread(&open_lock)) {
+      if(DEBUGYAHIA) printf("released lock exit\n");
+      lock_release(&open_lock);
+    }
     thread_exit();
 }
 
@@ -431,9 +438,7 @@ static uint32_t read(int fd, void *buffer, unsigned size)
         struct file *file = get_file(fd);
         if (file != NULL) {
             sema_down(&read_syscall_sema);
-            lock_acquire(&open_lock);
             int result_size = file_read(file, buffer, size);
-            lock_release(&open_lock);
             sema_up(&read_syscall_sema);
             return result_size ;
         }
