@@ -139,6 +139,7 @@ struct thread
     struct list my_children_list;
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
+    int upped_start_process_sema;
     uint32_t *pagedir;                  /* Page directory. */
     int depth;
     int block_parent;

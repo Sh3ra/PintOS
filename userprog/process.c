@@ -77,6 +77,7 @@ start_process(void *file_name_) {
     free(file_name);
     if(thread_current()->parent != initial_thread && success) {
       if(DEBUGYAHIA)printf("sema up called start process\n");
+      thread_current()->upped_start_process_sema = 1;
       sema_up(&thread_current()->parent->start_process_sema);
     }
 
@@ -148,16 +149,14 @@ void free_all_children_close_all_files() {
   struct thread * t = thread_current();
 
   struct list * l = &thread_current()->my_opened_files_list;
-  for (struct list_elem * e = list_begin(l); e != list_end(l);
-       e = list_next(e)) {
+  /*for (struct list_elem * e = list_begin(l); e != list_end(l);) {
       struct file * f = list_entry(e, struct file, file_elem);
       e = list_next(e);
       file_close(f);
   }
-
+  */
   l = &thread_current()->my_children_list;
-  for (struct list_elem * e = list_begin(l); e != list_end(l);
-       e = list_next(e)) {
+  for (struct list_elem * e = list_begin(l); e != list_end(l);) {
       struct child_process * cp = list_entry(e, struct child_process, my_child_elem);
       e = list_next(e);
       free(cp);
@@ -169,7 +168,7 @@ void
 process_exit(void) {
     struct thread *cur = thread_current();
     uint32_t *pd;
-    //free_all_children_close_all_files();
+    free_all_children_close_all_files();
     /* Destroy the current process's page directory and switch back
        to the kernel-only page directory. */
     pd = cur->pagedir;

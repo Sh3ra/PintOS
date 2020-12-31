@@ -339,6 +339,7 @@ thread_exit(void) {
 
 #ifdef USERPROG
     if(thread_current()->block_parent) {
+      if(DEBUG2) printf("child upped wait\n");
       sema_up(&thread_current()->parent->childWaitSema);
     }
     process_exit ();
@@ -561,6 +562,7 @@ init_thread(struct thread *t, const char *name, int priority, int recent_cpu_val
     list_init(&t->my_children_list);
 #ifdef USERPROG
     sema_init(&t->start_process_sema, 0);
+    t->upped_start_process_sema = 0;
     list_init(&t->my_opened_files_list);
     t->bad = 0;
     t->block_parent = 0;

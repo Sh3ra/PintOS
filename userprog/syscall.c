@@ -322,9 +322,10 @@ void ourExit(int status)
     printf("%s: exit(%d)\n", thread_current()->name, status);
     if(DEBUG2) printf("thread %d set his status to %d\n", thread_current()->tid, status);
     set_exit_status_for_child_in_parent(thread_current()->tid, status);
-    if(thread_current()->parent != initial_thread) {
+    if (thread_current()->parent != initial_thread) {
       thread_current()->bad = 1;
-      sema_up(&thread_current()->parent->start_process_sema);
+      if (!thread_current()->upped_start_process_sema)
+        sema_up(&thread_current()->parent->start_process_sema);
     }
     file_close(thread_current()->my_exec_file); //close file that was opened in process.c/load function to decrement deny-inode-write again
     if(lock_held_by_current_thread(&open_lock)) {
