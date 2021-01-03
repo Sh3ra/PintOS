@@ -36,7 +36,7 @@ getName(const char *file_name) {
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
 process_execute(const char *file_name) {
-    if(DEBUGYAHIA) printf("start OF child process_execute\n");
+    if(DEBUGEXEC) printf("start OF child process_execute parent process is %s\n", thread_current()->name);
     tid_t tid;
     char *fn_copy=malloc(strlen(file_name)+1);
     char *usr_program=malloc(strlen(file_name)+1);
@@ -44,20 +44,31 @@ process_execute(const char *file_name) {
     strlcpy(usr_program,file_name,strlen(file_name)+1);
     char * save_ptr;
     usr_program = strtok_r(usr_program," ",&save_ptr);
-
+    if(DEBUGEXEC) printf("thread called process execute tid name is %s and tid is %d\n",thread_current()->name, thread_current()->tid );
+    struct child_process *cp = malloc(sizeof(struct child_process));
+    cp->exit_status = -100;
     tid = thread_create(usr_program, PRI_DEFAULT, start_process, fn_copy);
+    struct thread *t = get_process_with_specific_tid(tid);
+    t->cp = cp;
+    cp->tid = tid;
+    cp->waitedNo = 0;
+    thread_current()->blocked_by_child = 1;
+    if(DEBUGEXEC)printf("semaphore going down in process_execute\n");
+    sema_down(&thread_current()->waiting_for_child);
+    if(DEBUGEXEC)printf("ran away from semaphore in execute \n");
+    list_push_front(&thread_current()->my_children_list, &cp->my_child_elem);
     free(usr_program);
     if (tid == TID_ERROR) {
         free(fn_copy);
     }
-    return tid;
+    return cp->exit_status == -1? -1: tid;
 }
 
 /* A thread function that loads a user process and starts it
    running. */
 static void
 start_process(void *file_name_) {
-    if(DEBUGYAHIA) printf("start OF child start_process\n");
+    if(DEBUGEXEC) printf("thread called start process tid name is %s and tid is %d\n",thread_current()->name, thread_current()->tid );
     char *file_name = file_name_;
     struct intr_frame if_;
     bool success;
@@ -66,24 +77,18 @@ start_process(void *file_name_) {
     if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
     if_.cs = SEL_UCSEG;
     if_.eflags = FLAG_IF | FLAG_MBS;
-    if(DEBUGYAHIA)printf("before load\n");
-    if(thread_current()->depth >MAX_CHILD_DEPTH) {
-      success = false;
-    } else {
-      success = load(file_name, &if_.eip, &if_.esp);
-    }
-    if(DEBUGYAHIA)printf("after load\n");
+    if(DEBUGEXEC)printf("before load\n");
+    success = load(file_name, &if_.eip, &if_.esp);
+    if(DEBUGEXEC)printf("after load\n");
     /* If load failed, quit. */
     free(file_name);
-    if(thread_current()->parent != initial_thread && success) {
-      if(DEBUGYAHIA)printf("sema up called start process\n");
-      thread_current()->upped_start_process_sema = 1;
-      sema_up(&thread_current()->parent->start_process_sema);
-    }
-
     if (!success) {
-        if(DEBUG2) printf("exit called in start process\n");
+        if(DEBUGEXEC) printf("exit called in start process\n");
         ourExit(-1);
+    } else {
+        if(DEBUGEXEC)printf("sema up called start process\n");
+        thread_current()->parent->blocked_by_child = 0;
+        sema_up(&thread_current()->parent->waiting_for_child);
     }
 
 
@@ -126,22 +131,23 @@ int getStatusOfChild(tid_t tid, int check){
    does nothing. */
 int
 process_wait(tid_t child_tid UNUSED) {
-    if(DEBUG2) printf("in wait\n");
+    if(DEBUGWAIT) printf("in wait\n");
     int exit_status = getStatusOfChild(child_tid, 1);
-    if(DEBUG2) printf("exit status when leaving first point is %d\n", exit_status);
-    if(exit_status != -100 && thread_current() != initial_thread) return exit_status;
-    if(DEBUG2) printf("exit status first not triggered\n");
+    if(DEBUGWAIT) printf("exit status when leaving first point is %d\n", exit_status);
+    if(exit_status != -100) return exit_status;
+    if(DEBUGWAIT) printf("exit status first not triggered\n");
     struct thread * t = get_process_with_specific_tid(child_tid);
-    t->block_parent = 1;
     if(lock_held_by_current_thread(&open_lock)) {
-      if(DEBUG2) printf("lock released in exit\n");
+      if(DEBUGWAIT) printf("lock released in exit\n");
       lock_release(&open_lock);
     }
-    sema_down(&thread_current()->childWaitSema);
-    if(DEBUG2) printf("got out of semadown\n");
+    thread_current()->blocked_by_child = 1;
+    if(DEBUGWAIT)printf("semaphore going down in process wait\n");
+    sema_down(&thread_current()->waiting_for_child);
+    lock_acquire(&open_lock);
+    if(DEBUGWAIT) printf("got out of semadown in wait\n");
     exit_status = getStatusOfChild(child_tid, 0);
-    if(DEBUG2) printf("exit status when leaving last point is %d\n", exit_status);
-    if(DEBUG2) printf("thread name is %s thread %d set his status to %d\n", thread_current()->name,thread_current()->tid, exit_status);
+    if(DEBUGWAIT) printf("thread name is %s thread %d set his status to %d\n", thread_current()->name,thread_current()->tid, exit_status);
     return exit_status;
 }
 

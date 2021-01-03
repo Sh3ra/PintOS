@@ -107,7 +107,6 @@ syscall_handler(struct intr_frame *f UNUSED)
       if(DEBUG)printf("exec\n");
         char *cmd_line = (char *)(*((int *)f->esp + 1));
         f->eax = execute(cmd_line);
-
         break;
     }
     case SYS_WAIT:
@@ -245,21 +244,7 @@ static tid_t execute(char *cmd_line)
     {
         kill();
     }
-    tid_t pid = process_execute(cmd_line);
-    //printf("thread_going down %s sema value is %d\n", thread_current()->name, thread_current()->start_process_sema.value );
-
-    struct thread *t = get_process_with_specific_tid(pid);
-    if(DEBUGYAHIA)printf("semaphore going down\n");
-    sema_down(&thread_current()->start_process_sema);
-    if(DEBUGYAHIA)printf("ran away from semaphore\n");
-    if (t == NULL || t->bad == 1)
-        return -1;
-    struct child_process *cp=malloc(sizeof(struct child_process));
-    cp->tid = t->tid;
-    cp->exit_status = -100;
-    cp->waitedNo = 0;
-    list_push_front(&thread_current()->my_children_list, &cp->my_child_elem);
-    return pid;
+    return process_execute(cmd_line);
 }
 
 static int wait(tid_t pid)
@@ -304,34 +289,20 @@ static int open_file(char *curr_name)
     return res;
 }
 
-
-void set_exit_status_for_child_in_parent(int tid, int exit_status){
-    struct thread * t = thread_current()->parent;
-    for (struct list_elem *iterator = list_begin(&t->my_children_list);
-         iterator != list_end(&t->my_children_list);
-         iterator = list_next(iterator))
-    {
-      if(tid == list_entry(iterator, struct child_process, my_child_elem)->tid) {
-        list_entry(iterator, struct child_process, my_child_elem)->exit_status = exit_status;
-      }
-    }
-}
-
 void ourExit(int status)
 {
+    if(DEBUGEXIT) printf("thread calling exit is %s with status %d\n",thread_current()->name  , status);
     printf("%s: exit(%d)\n", thread_current()->name, status);
-    if(DEBUG2) printf("thread %d set his status to %d\n", thread_current()->tid, status);
-    set_exit_status_for_child_in_parent(thread_current()->tid, status);
-    if (thread_current()->parent != initial_thread) {
-      thread_current()->bad = 1;
-      if (!thread_current()->upped_start_process_sema)
-        sema_up(&thread_current()->parent->start_process_sema);
-    }
+    struct child_process * cp = thread_current()->cp;
+    thread_current()->cp->exit_status = status;
+    if(DEBUGEXIT) printf("thread %d %s set his status to %d\n", thread_current()->tid, thread_current()->name  , status);
+    if(thread_current()->my_exec_file != NULL )
     file_close(thread_current()->my_exec_file); //close file that was opened in process.c/load function to decrement deny-inode-write again
     if(lock_held_by_current_thread(&open_lock)) {
-      if(DEBUGYAHIA) printf("released lock exit\n");
+      if(DEBUGEXIT) printf("released lock exit\n");
       lock_release(&open_lock);
     }
+    if(DEBUGEXIT)printf("thread called exit\n");
     thread_exit();
 }
 

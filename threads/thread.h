@@ -10,6 +10,9 @@
 #define DEBUG 0
 #define DEBUGYAHIA 0
 #define DEBUG2 0
+#define DEBUGEXEC 0
+#define DEBUGWAIT 0
+#define DEBUGEXIT 0
 #define MAX_DEPTH 10
 
 /* Initial thread, the thread running init.c:main().*/
@@ -135,18 +138,15 @@ struct thread
     struct lock exec_lock;
     /* Shared between thread.c and synch.c. and timer.c */
     struct list_elem elem;              /* List element. */
-
+    struct child_process * cp;
     struct list my_children_list;
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
-    int upped_start_process_sema;
     uint32_t *pagedir;                  /* Page directory. */
     int depth;
-    int block_parent;
-    int bad;
-    struct semaphore childWaitSema;
+    int blocked_by_child;
+    struct semaphore waiting_for_child;
     struct thread *parent;
-    struct semaphore start_process_sema;
     struct list my_opened_files_list ;
     struct file * my_exec_file ;
 #endif

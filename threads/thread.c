@@ -335,14 +335,19 @@ thread_tid(void) {
    returns to the caller. */
 void
 thread_exit(void) {
+    if(DEBUG)printf("current thread exiting is %s\n",thread_current()->name );
     ASSERT(!intr_context());
 
 #ifdef USERPROG
-    if(thread_current()->block_parent) {
-      if(DEBUG2) printf("child upped wait\n");
-      sema_up(&thread_current()->parent->childWaitSema);
-    }
+    struct thread * t = thread_current()->parent;
     process_exit ();
+    if(t != NULL &&  (t->blocked_by_child == 1)) {
+      if(DEBUGEXIT)printf("semaphore going up in exit\n");
+      t->blocked_by_child = 0;
+      if(DEBUGEXIT)printf("semaphore value in exit before upping is %d\n", t->waiting_for_child.value);
+      sema_up(&t->waiting_for_child);
+      if(DEBUGEXIT)printf("thread continuing after upping semaphore %s\n", thread_current()->name);
+    }
 #endif
 
     /* Remove thread from all threads list, set our status to dying,
@@ -550,7 +555,7 @@ init_thread(struct thread *t, const char *name, int priority, int recent_cpu_val
 
     enum intr_level old_level;
 
-    ASSERT(t != NULL);
+    ASSERT(t != NULL)
     ASSERT(PRI_MIN <= priority && priority <= PRI_MAX);
     ASSERT(name != NULL);
     memset(t, 0, sizeof *t);
@@ -560,14 +565,11 @@ init_thread(struct thread *t, const char *name, int priority, int recent_cpu_val
     t->priority = priority;
     t->don_priority = 0;
     list_init(&t->my_children_list);
+    sema_init(&t->waiting_for_child, 0);
 #ifdef USERPROG
-    sema_init(&t->start_process_sema, 0);
-    t->upped_start_process_sema = 0;
+    t->blocked_by_child = 0;
     list_init(&t->my_opened_files_list);
-    t->bad = 0;
-    t->block_parent = 0;
     t->fd = 1;
-    sema_init(&t->childWaitSema, 0);
     if(list_size(&all_list)>0) {
       t->parent = thread_current();
       t->depth = t->parent->depth + 1;
