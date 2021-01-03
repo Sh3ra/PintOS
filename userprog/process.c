@@ -20,7 +20,6 @@
 #include "threads/vaddr.h"
 #define MAX_CHILD_DEPTH 31
 static thread_func start_process NO_RETURN;
-#define MAX_CHILD_DEPTH 31
 static bool load(const char *cmdline, void (**eip)(void), void **esp);
 
 char *
@@ -36,27 +35,32 @@ getName(const char *file_name) {
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
 process_execute(const char *file_name) {
-    if(DEBUGEXEC) printf("start OF child process_execute parent process is %s\n", thread_current()->name);
+    if(DEBUGEXEC) printf("size of all list elem %d\n", list_size(&all_list));
+    if(DEBUGEXEC) printf("start OF child process_execute parent process is %d\n", thread_current()->tid);
     tid_t tid;
     char *fn_copy=malloc(strlen(file_name)+1);
     char *usr_program=malloc(strlen(file_name)+1);
+    if(DEBUGEXEC) printf("fn copy and usr program malloced %d\n", thread_current()->tid);
+    char * save_ptr;
     strlcpy(fn_copy,file_name,strlen(file_name)+1);
     strlcpy(usr_program,file_name,strlen(file_name)+1);
-    char * save_ptr;
+    if(fn_copy == NULL || usr_program == NULL)  {
+      if(DEBUGEXEC)printf("filenames are null\n");
+      return -1;
+    }
+    if(DEBUGEXEC) printf("fn copy and usr program copied %d\n", thread_current()->tid);
     usr_program = strtok_r(usr_program," ",&save_ptr);
     if(DEBUGEXEC) printf("thread called process execute tid name is %s and tid is %d\n",thread_current()->name, thread_current()->tid );
     struct child_process *cp = malloc(sizeof(struct child_process));
+    ASSERT(cp != NULL);
     cp->exit_status = -100;
-    tid = thread_create(usr_program, PRI_DEFAULT, start_process, fn_copy);
-    struct thread *t = get_process_with_specific_tid(tid);
-    t->cp = cp;
-    cp->tid = tid;
     cp->waitedNo = 0;
+    list_push_front(&thread_current()->my_children_list, &cp->my_child_elem);
+    tid = thread_create(usr_program, PRI_DEFAULT, start_process, fn_copy);
     thread_current()->blocked_by_child = 1;
     if(DEBUGEXEC)printf("semaphore going down in process_execute\n");
     sema_down(&thread_current()->waiting_for_child);
     if(DEBUGEXEC)printf("ran away from semaphore in execute \n");
-    list_push_front(&thread_current()->my_children_list, &cp->my_child_elem);
     free(usr_program);
     if (tid == TID_ERROR) {
         free(fn_copy);
@@ -82,7 +86,7 @@ start_process(void *file_name_) {
     if(DEBUGEXEC)printf("after load\n");
     /* If load failed, quit. */
     free(file_name);
-    if (!success) {
+    if (!success || thread_current()->depth > MAX_CHILD_DEPTH) {
         if(DEBUGEXEC) printf("exit called in start process\n");
         ourExit(-1);
     } else {
@@ -98,6 +102,7 @@ start_process(void *file_name_) {
        arguments on the stack in the form of a `struct intr_frame',
        we just point the stack pointer (%esp) to our stack frame
        and jump to it. */
+    if(DEBUGEXEC) printf("final line in start process\n");
     asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
     NOT_REACHED ();
 }
@@ -130,7 +135,7 @@ int getStatusOfChild(tid_t tid, int check){
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait(tid_t child_tid UNUSED) {
+  process_wait(tid_t child_tid UNUSED) {
     if(DEBUGWAIT) printf("in wait\n");
     int exit_status = getStatusOfChild(child_tid, 1);
     if(DEBUGWAIT) printf("exit status when leaving first point is %d\n", exit_status);
@@ -138,7 +143,7 @@ process_wait(tid_t child_tid UNUSED) {
     if(DEBUGWAIT) printf("exit status first not triggered\n");
     struct thread * t = get_process_with_specific_tid(child_tid);
     if(lock_held_by_current_thread(&open_lock)) {
-      if(DEBUGWAIT) printf("lock released in exit\n");
+      if(DEBUGWAIT) printf("lock released in wait\n");
       lock_release(&open_lock);
     }
     thread_current()->blocked_by_child = 1;
@@ -147,7 +152,7 @@ process_wait(tid_t child_tid UNUSED) {
     lock_acquire(&open_lock);
     if(DEBUGWAIT) printf("got out of semadown in wait\n");
     exit_status = getStatusOfChild(child_tid, 0);
-    if(DEBUGWAIT) printf("thread name is %s thread %d set his status to %d\n", thread_current()->name,thread_current()->tid, exit_status);
+    if(DEBUGWAIT) printf("thread name is %s thread %d set his status to %d\n", thread_current()->name,child_tid, exit_status);
     return exit_status;
 }
 
@@ -174,7 +179,9 @@ void
 process_exit(void) {
     struct thread *cur = thread_current();
     uint32_t *pd;
+    if(DEBUGEXIT) printf("Before freeing children\n");
     free_all_children_close_all_files();
+    if(DEBUGEXIT) printf("After freeing children\n");
     /* Destroy the current process's page directory and switch back
        to the kernel-only page directory. */
     pd = cur->pagedir;

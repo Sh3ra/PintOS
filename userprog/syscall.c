@@ -146,12 +146,6 @@ syscall_handler(struct intr_frame *f UNUSED)
     {
         if(DEBUG)printf("open\n");
         char *curr_name = (char *)(*((int *)f->esp + 1));
-        if (curr_name == NULL)
-        {
-            f->eax = -1;
-            if(DEBUG2) printf("exit called in open\n");
-            ourExit(-1);
-        }
         f->eax = open_file(curr_name);
         break;
     }
@@ -184,7 +178,6 @@ syscall_handler(struct intr_frame *f UNUSED)
         //since this syscall returns a value, the return value should be stored in f->eax
         f->eax = write(fd, buffer, size);
         break;
-        f->eax = write(fd, buffer, size);
     }
     case SYS_SEEK:
     {
@@ -291,13 +284,12 @@ static int open_file(char *curr_name)
 
 void ourExit(int status)
 {
-    if(DEBUGEXIT) printf("thread calling exit is %s with status %d\n",thread_current()->name  , status);
+    if(DEBUGEXIT) printf("thread calling exit is %d with status %d\n",thread_current()->tid  , status);
     printf("%s: exit(%d)\n", thread_current()->name, status);
     struct child_process * cp = thread_current()->cp;
     thread_current()->cp->exit_status = status;
-    if(DEBUGEXIT) printf("thread %d %s set his status to %d\n", thread_current()->tid, thread_current()->name  , status);
-    if(thread_current()->my_exec_file != NULL )
-    file_close(thread_current()->my_exec_file); //close file that was opened in process.c/load function to decrement deny-inode-write again
+    if(DEBUGEXIT) printf("thread %s %d set his status to %d\n", thread_current()->name, thread_current()->tid, status);
+
     if(lock_held_by_current_thread(&open_lock)) {
       if(DEBUGEXIT) printf("released lock exit\n");
       lock_release(&open_lock);
@@ -306,8 +298,7 @@ void ourExit(int status)
     thread_exit();
 }
 
-static uint32_t write(int fd, void *buffer, unsigned int size)
-{
+static uint32_t write(int fd, void *buffer, unsigned int size) {
     unsigned buffer_size = size;
     void *buffer_tmp = buffer;
 
@@ -315,8 +306,10 @@ static uint32_t write(int fd, void *buffer, unsigned int size)
     while (buffer_tmp != NULL)
     {
         //printf("hey");
-        if (!is_valid_ptr(buffer_tmp))
+        if (!is_valid_ptr(buffer_tmp)) {
             kill();
+        }
+
 
         /* Advance */
         if (buffer_size > PGSIZE)

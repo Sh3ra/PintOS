@@ -220,14 +220,31 @@ thread_create(const char *name, int priority,
 
     /* Allocate thread. */
     t = palloc_get_page(PAL_ZERO);
-    if (t == NULL)
-        return TID_ERROR;
+    if (t == NULL) {
+      struct child_process * cp = list_entry(list_begin(&thread_current()->my_children_list), struct child_process, my_child_elem);
+      if(DEBUGEXEC) printf("started putting child data in thread create Failure\n");
+      cp->tid = -1;
+      cp->exit_status = -1;
+      if(DEBUGEXEC) printf("ended putting child data in thread create Failure\n");
+      if(thread_current()->blocked_by_child ==1) {
+        thread_current()->blocked_by_child = 0;
+        sema_up(&thread_current()->waiting_for_child);
+      }
+      return TID_ERROR;
+    }
+
 
     /* Initialize thread. */
     init_thread(t, name, priority, thread_current()->recent_cpu.val, thread_current()->nice);
 
     tid = t->tid = allocate_tid();
 
+    if(list_size(&all_list)>0) {
+      if(DEBUGEXEC) printf("started setting child data for thread %d\n", t->tid);
+      t->cp = list_entry(list_begin(&thread_current()->my_children_list), struct child_process, my_child_elem);
+      t->cp->tid = tid;
+      if(DEBUGEXEC) printf("finished setting child data for thread %d child tid is %d\n", t->tid, tid);
+    }
     /* Stack frame for kernel_thread(). */
     kf = alloc_frame(t, sizeof *kf);
     kf->eip = NULL;
@@ -335,18 +352,24 @@ thread_tid(void) {
    returns to the caller. */
 void
 thread_exit(void) {
-    if(DEBUG)printf("current thread exiting is %s\n",thread_current()->name );
+    if(DEBUGEXIT)printf("current thread exiting is %d\n",thread_current()->tid );
     ASSERT(!intr_context());
 
 #ifdef USERPROG
+    if(thread_current()->my_exec_file != NULL ) {
+      if(DEBUGEXIT) printf("closed execution file of thread %d\n",thread_current()->tid);
+      file_close(thread_current()->my_exec_file); //close file that was opened in process.c/load function to decrement deny-inode-write again
+    }
     struct thread * t = thread_current()->parent;
+    if(DEBUGEXIT)printf("current thread exiting parent is %d\n",t->tid );
     process_exit ();
+    if(DEBUGEXIT)printf("proces exit is done\n");
     if(t != NULL &&  (t->blocked_by_child == 1)) {
       if(DEBUGEXIT)printf("semaphore going up in exit\n");
       t->blocked_by_child = 0;
       if(DEBUGEXIT)printf("semaphore value in exit before upping is %d\n", t->waiting_for_child.value);
       sema_up(&t->waiting_for_child);
-      if(DEBUGEXIT)printf("thread continuing after upping semaphore %s\n", thread_current()->name);
+      if(DEBUGEXIT)printf("thread continuing after upping semaphore %d\n", thread_current()->tid);
     }
 #endif
 

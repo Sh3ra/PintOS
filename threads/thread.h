@@ -149,6 +149,7 @@ struct thread
     struct thread *parent;
     struct list my_opened_files_list ;
     struct file * my_exec_file ;
+    int blocking_parent;
 #endif
 
     /* Owned by thread.c. */
