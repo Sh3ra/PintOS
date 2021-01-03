@@ -541,6 +541,7 @@ setup_stack(void **esp, char *file_name) {
             return success;
        }
     }
+    if(!success) return false;
     int cnt=countWords(file_name);
     int * addresses = malloc( (cnt+1) * sizeof(int));
     char ** args = malloc((cnt+1) * sizeof(char*));
