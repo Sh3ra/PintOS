@@ -56,8 +56,9 @@ process_execute(const char *file_name) {
     cp->exit_status = -100;
     cp->waitedNo = 0;
     list_push_front(&thread_current()->my_children_list, &cp->my_child_elem);
-    tid = thread_create(usr_program, PRI_DEFAULT, start_process, fn_copy);
+
     thread_current()->blocked_by_child = 1;
+    tid = thread_create(usr_program, PRI_DEFAULT, start_process, fn_copy);
     if(DEBUGEXEC)printf("semaphore going down in process_execute\n");
     sema_down(&thread_current()->waiting_for_child);
     if(DEBUGEXEC)printf("ran away from semaphore in execute \n");
