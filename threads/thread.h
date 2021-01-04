@@ -146,7 +146,9 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
     int depth;
     int blocked_by_child;
+    bool exec_success;
     struct semaphore waiting_for_child;
+    struct semaphore exec_sema;
     struct thread *parent;
     struct list my_opened_files_list ;
     struct file * my_exec_file ;
@@ -164,6 +166,7 @@ struct thread
       int exit_status;
       struct list_elem my_child_elem;
       int waitedNo;
+      struct semaphore sema;
   };
 
 /* If false (default), use round-robin scheduler.

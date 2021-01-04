@@ -220,32 +220,24 @@ thread_create(const char *name, int priority,
 
     /* Allocate thread. */
     t = palloc_get_page(PAL_ZERO);
+    if(DEBUGEXEC) printf("Thread checker before \n");
     if (t == NULL) {
-        struct child_process *cp = list_entry(list_begin(&thread_current()->my_children_list), struct child_process,
-                                              my_child_elem);
-        if (DEBUGEXEC) printf("started putting child data in thread create Failure\n");
-        cp->tid = -1;
-        cp->exit_status = -1;
-        if (DEBUGEXEC) printf("ended putting child data in thread create Failure\n");
-        /*if (thread_current()->blocked_by_child == 1) {
-            thread_current()->blocked_by_child = 0;
-            sema_up(&thread_current()->waiting_for_child);
-        }*/
         return TID_ERROR;
     }
-
+    if(DEBUGEXEC) printf("Thread checker After \n");
 
     /* Initialize thread. */
     init_thread(t, name, priority, thread_current()->recent_cpu.val, thread_current()->nice);
 
     tid = t->tid = allocate_tid();
 
-    if (list_size(&all_list) > 0) {
-        if (DEBUGEXEC) printf("started setting child data for thread %d\n", t->tid);
-        t->cp = list_entry(list_begin(&thread_current()->my_children_list), struct child_process, my_child_elem);
-        t->cp->tid = tid;
-        if (DEBUGEXEC) printf("finished setting child data for thread %d child tid is %d\n", t->tid, tid);
-    }
+    t->cp = malloc(sizeof(struct child_process));
+    t->cp->tid = tid;
+    t->cp->exit_status = -100;
+    t->cp->waitedNo = 0;
+    sema_init(&t->cp->sema, 0);
+    list_push_front(&thread_current()->my_children_list, &t->cp->my_child_elem);
+
     /* Stack frame for kernel_thread(). */
     kf = alloc_frame(t, sizeof *kf);
     kf->eip = NULL;
@@ -357,19 +349,7 @@ thread_exit(void) {
     ASSERT(!intr_context());
 
 #ifdef USERPROG
-
-    struct thread * t = thread_current()->parent;
-    int tid = thread_current()->tid;
-    if(DEBUGEXIT)printf("current thread exiting parent is %d\n",t->tid );
     process_exit ();
-    if(DEBUGEXIT)printf("proces exit is done\n");
-    if(t != NULL &&  t->blocked_by_child == 1 && t->blocking_child ==tid) {
-      if(DEBUGEXIT)printf("semaphore going up in exit\n");
-      t->blocked_by_child = 0;
-      if(DEBUGEXIT)printf("semaphore value in exit before upping is %d\n", t->waiting_for_child.value);
-      sema_up(&t->waiting_for_child);
-      if(DEBUGEXIT)printf("thread continuing after upping semaphore %d\n", thread_current()->tid);
-    }
 #endif
 
     /* Remove thread from all threads list, set our status to dying,
@@ -377,6 +357,7 @@ thread_exit(void) {
        when it calls thread_schedule_tail(). */
     intr_disable();
     list_remove(&thread_current()->allelem);
+    if(DEBUGEXIT) printf("Thread getting destroyed %d\n",  thread_current()->tid);
     thread_current()->status = THREAD_DYING;
     schedule();
     NOT_REACHED();
@@ -587,9 +568,11 @@ init_thread(struct thread *t, const char *name, int priority, int recent_cpu_val
     t->priority = priority;
     t->don_priority = 0;
     list_init(&t->my_children_list);
-    sema_init(&t->waiting_for_child, 0);
+
 #ifdef USERPROG
     t->blocked_by_child = 0;
+    sema_init(&t->exec_sema, 0);
+    sema_init(&t->waiting_for_child, 0);
     list_init(&t->my_opened_files_list);
     t->fd = 1;
     if(list_size(&all_list)>0) {

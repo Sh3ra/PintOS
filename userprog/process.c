@@ -24,12 +24,7 @@ static thread_func start_process NO_RETURN;
 
 static bool load(const char *cmdline, void (**eip)(void), void **esp);
 
-char *
-getName(const char *file_name) {
-    char *save_ptr, *fn_copy = palloc_get_page(0);
-    strlcpy(fn_copy, file_name, PGSIZE);
-    return strtok_r(fn_copy, " ", &save_ptr);
-}
+
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -37,46 +32,24 @@ getName(const char *file_name) {
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
 process_execute(const char *file_name) {
-    if (DEBUGEXEC) printf("size of all list elem %d\n", list_size(&all_list));
-    if (DEBUGEXEC) printf("start OF child process_execute parent process is %d\n", thread_current()->tid);
     tid_t tid;
     char *fn_copy = malloc(strlen(file_name) + 1);
     char *usr_program = malloc(strlen(file_name) + 1);
-    if (DEBUGEXEC) printf("fn copy and usr program malloced %d\n", thread_current()->tid);
     char *save_ptr;
     strlcpy(fn_copy, file_name, strlen(file_name) + 1);
     strlcpy(usr_program, file_name, strlen(file_name) + 1);
-    if (fn_copy == NULL || usr_program == NULL) {
-        if (DEBUGEXEC)printf("filenames are null\n");
-        return -1;
-    }
-    if (DEBUGEXEC) printf("fn copy and usr program copied %d\n", thread_current()->tid);
     usr_program = strtok_r(usr_program, " ", &save_ptr);
-    if (DEBUGEXEC)
-        printf("thread called process execute tid name is %s and tid is %d\n", thread_current()->name,
-               thread_current()->tid);
-    struct child_process *cp = malloc(sizeof(struct child_process));
-    ASSERT(cp != NULL);
-    cp->exit_status = -100;
-    cp->waitedNo = 0;
-    list_push_front(&thread_current()->my_children_list, &cp->my_child_elem);
-
-    //thread_current()->blocked_by_child = 1;
     tid = thread_create(usr_program, PRI_DEFAULT, start_process, fn_copy);
-    if (DEBUGEXEC)printf("semaphore going down in process_execute\n");
-    if(tid!=TID_ERROR) {
-        thread_current()->blocked_by_child = 1;
-        thread_current()->blocking_child = tid;
-        sema_down(&thread_current()->waiting_for_child);
-        thread_current()->blocked_by_child = -1;
-
-    }if (DEBUGEXEC)printf("ran away from semaphore in execute \n");
     free(usr_program);
-    if (tid == TID_ERROR) {
-        free(fn_copy);
+    if(tid == TID_ERROR) {
+      free(fn_copy);
+      return TID_ERROR;
     }
-    return cp->exit_status == -1 ? -1 : tid;
+    sema_down(&thread_current()->exec_sema);
+    if (!thread_current()->exec_success) return TID_ERROR;
+    return tid;
 }
+
 
 /* A thread function that loads a user process and starts it
    running. */
@@ -96,15 +69,17 @@ start_process(void *file_name_) {
     if (DEBUGEXEC)printf("before load\n");
     success = load(file_name, &if_.eip, &if_.esp);
     if (DEBUGEXEC)printf("after load\n");
-    /* If load failed, quit. */
     free(file_name);
-    if (!success || thread_current()->depth > MAX_CHILD_DEPTH) {
-        if (DEBUGEXEC) printf("exit called in start process\n");
-        ourExit(-1);
-    } else {
-        if (DEBUGEXEC)printf("sema up called start process\n");
-            thread_current()->parent->blocked_by_child = 0;
-            sema_up(&thread_current()->parent->waiting_for_child);
+
+    if(success) {
+      thread_current()->parent->exec_success=true;
+      sema_up(&thread_current()->parent->exec_sema);
+    }
+    else{
+      thread_current()->parent->exec_success=false;
+      sema_up(&thread_current()->parent->exec_sema);
+      lock_acquire(&open_lock);
+      ourExit(-1);
     }
 
 
@@ -147,27 +122,27 @@ int getStatusOfChild(tid_t tid, int check) {
    does nothing. */
 int
 process_wait(tid_t child_tid UNUSED) {
-    if (DEBUGWAIT) printf("in wait\n");
-    int exit_status = getStatusOfChild(child_tid, 1);
-    if (DEBUGWAIT) printf("exit status when leaving first point is %d\n", exit_status);
-    if (exit_status != -100) return exit_status;
-    if (DEBUGWAIT) printf("exit status first not triggered\n");
-    struct thread *t = get_process_with_specific_tid(child_tid);
-
-    thread_current()->blocked_by_child = 1;
-    thread_current()->blocking_child = child_tid;
-    if (lock_held_by_current_thread(&open_lock)) {
-        if (DEBUGWAIT) printf("lock released in wait\n");
-        lock_release(&open_lock);
+    struct thread *t = thread_current();
+    struct child_process *cp;
+    struct list_elem *iterator;
+    for (iterator = list_begin(&t->my_children_list);
+         iterator != list_end(&t->my_children_list);
+         iterator = list_next(iterator)) {
+        cp = list_entry(iterator, struct child_process, my_child_elem);
+        if (child_tid == cp->tid) {
+            if (cp->waitedNo) return -1;
+            cp->waitedNo++;
+            /* called lock release with if statement here as
+            the initial thread doesn't acquire the lock somehow and
+            goes here*/
+            sema_down(&cp->sema);
+            break;
+        }
     }
-    if (DEBUGWAIT)printf("semaphore going down in process wait\n");
-    sema_down(&thread_current()->waiting_for_child);
-    thread_current()->blocking_child = -1 ;
-    lock_acquire(&open_lock);
-    if (DEBUGWAIT) printf("got out of semadown in wait\n");
-    exit_status = getStatusOfChild(child_tid, 0);
-    if (DEBUGWAIT)
-        printf("thread name is %s thread %d set his status to %d\n", thread_current()->name, child_tid, exit_status);
+    if (iterator == list_end(&t->my_children_list)) return -1;
+    int exit_status = cp-> exit_status;
+    list_remove(iterator);
+    free(cp);
     return exit_status;
 }
 
@@ -178,7 +153,6 @@ void free_all_children() {
         e = list_next(e);
         free(cp);
     }
-
 }
 
 /* Free the current process's resources. */
@@ -186,9 +160,7 @@ void
 process_exit(void) {
     struct thread *cur = thread_current();
     uint32_t *pd;
-    if (DEBUGEXIT) printf("Before freeing children\n");
     free_all_children();
-    if (DEBUGEXIT) printf("After freeing children\n");
     /* Destroy the current process's page directory and switch back
        to the kernel-only page directory. */
     pd = cur->pagedir;
@@ -312,9 +284,11 @@ load(const char *file_name, void (**eip)(void), void **esp) {
     process_activate();
 
     /* Open executable file. */
-    char *usr_program = NULL;
-    usr_program = getName(file_name);
+    char *usr_program = malloc(strlen(file_name) + 1);
+    strlcpy(usr_program, file_name, strlen(file_name) + 1);
     if (usr_program == NULL) return false;
+    char * save_ptr;
+    usr_program = strtok_r(usr_program, " ", &save_ptr);
     //for(;;);
     file = filesys_open(usr_program);
     if (file == NULL) {
@@ -559,12 +533,12 @@ setup_stack(void **esp, char *file_name) {
     int cnt = countWords(file_name);
     int *addresses = malloc((cnt + 1) * sizeof(int));
     char **args = malloc((cnt + 1) * sizeof(char *));
-    char *fn_copy = palloc_get_page(0);
+    char *fn_copy = file_name;
     if (fn_copy == NULL) {
         palloc_free_page(kpage);
         return false;
     }
-    strlcpy(fn_copy, file_name, PGSIZE);
+
     parseCmd(fn_copy, args);
     for (int i = cnt; i >= 0; i--) {
         if (args[i] != NULL) {

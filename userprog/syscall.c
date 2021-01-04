@@ -85,6 +85,7 @@ syscall_handler(struct intr_frame *f UNUSED)
     }
     if(DEBUGYAHIA) printf("trying to acquire lock\n");
     if(DEBUGYAHIA)printf("syscall is %d\n", *(int *)f->esp);
+    ASSERT(&open_lock != NULL);
     lock_acquire(&open_lock);
     if(DEBUG_OMAR)printf("%d acquired " , thread_current()->tid);
     if(DEBUGYAHIA) printf("acquired lock\n");
@@ -118,7 +119,8 @@ syscall_handler(struct intr_frame *f UNUSED)
         if(DEBUG_OMAR)printf("wait\n" );
         if(DEBUG)printf("wait\n");
         tid_t child_pid = (tid_t *)(*((int *)f->esp + 1));
-        f->eax = wait(child_pid);
+        lock_release(&open_lock);
+        f->eax = process_wait(child_pid);
         break;
     }
     case SYS_CREATE:
@@ -221,11 +223,10 @@ syscall_handler(struct intr_frame *f UNUSED)
         kill();
     }
     }
-    if(lock_held_by_current_thread(&open_lock)) {
-      if(DEBUGYAHIA) printf("released lock lock\n");
-        if(DEBUG_OMAR)printf("%d released\n" , thread_current()->tid);
-        lock_release(&open_lock);
-    }
+    if(DEBUGYAHIA) printf("released lock lock\n");
+    if(DEBUG_OMAR)printf("%d released\n" , thread_current()->tid);
+    if(lock_held_by_current_thread(&open_lock))
+    lock_release(&open_lock);
 }
 
 struct file *get_file(int fd)
@@ -253,11 +254,6 @@ static tid_t execute(char *cmd_line)
         kill();
     }
     return process_execute(cmd_line);
-}
-
-static int wait(tid_t pid)
-{
-    return process_wait(pid);
 }
 
 static bool create_file(char *curr_name, off_t initial_size)
@@ -312,6 +308,7 @@ void ourExit(int status)
     printf("%s: exit(%d)\n", thread_current()->name, status);
     struct child_process * cp = thread_current()->cp;
     thread_current()->cp->exit_status = status;
+    sema_up(&thread_current()->cp->sema);
     if(DEBUGEXIT) printf("thread %s %d set his status to %d\n", thread_current()->name, thread_current()->tid, status);
     if(thread_current()->my_exec_file != NULL ) {
         file_close(thread_current()->my_exec_file); //close file that was opened in process.c/load function to decrement deny-inode-write again

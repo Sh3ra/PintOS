@@ -201,32 +201,16 @@ getDonationFromWaiters(struct lock *lock) {
    interrupts disabled, but interrupts will be turned back on if
    we need to sleep. */
 
-void
-lock_acquire(struct lock *lock) {
-    ASSERT(lock != NULL);
-    ASSERT(!intr_context());
-    ASSERT(!lock_held_by_current_thread(lock));
-    struct thread *holder = lock->holder;
-    if(holder !=NULL) {
-        thread_current()->lock_holder = holder;
-        while (holder != NULL) {
-            int temp = holder->don_priority ;
-            holder->don_priority = max(max(holder->don_priority, thread_current()->priority),
-                                       thread_current()->don_priority);
-            if(holder->don_priority == temp)break ;
-           if (holder->status == THREAD_READY) {
-                reinsert_thread_in_list(holder, &ready_list);
-            } else if (holder->status == THREAD_BLOCKED && holder->blocking_sema_list != NULL) {
-                reinsert_thread_in_list(holder, holder->blocking_sema_list);
-            }
-            holder = holder->lock_holder;
-        }
-    }
-    sema_down(&lock->semaphore);
-    getDonationFromWaiters(lock);
-    list_push_back(&thread_current()->my_locks, &lock->lock_elem);
-    lock->holder = thread_current();
-}
+ void
+ lock_acquire (struct lock *lock)
+ {
+   ASSERT (lock != NULL);
+   ASSERT (!intr_context ());
+   ASSERT (!lock_held_by_current_thread (lock));
+
+   sema_down (&lock->semaphore);
+   lock->holder = thread_current ();
+ }
 
 /* Tries to acquires LOCK and returns true if successful or false
    on failure.  The lock must not already be held by the current
@@ -266,14 +250,15 @@ void remove_lock_and_get_donation(struct lock *lock) {
    make sense to try to release a lock within an interrupt
    handler. */
 
-void
-lock_release(struct lock *lock) {
-    ASSERT(lock != NULL);
-    ASSERT(lock_held_by_current_thread(lock));
-    lock->holder = NULL;
-    remove_lock_and_get_donation(lock);
-    sema_up(&lock->semaphore);
-}
+ void
+ lock_release (struct lock *lock)
+ {
+   ASSERT (lock != NULL);
+   ASSERT (lock_held_by_current_thread (lock));
+
+   lock->holder = NULL;
+   sema_up (&lock->semaphore);
+ }
 
 
 /* Returns true if the current thread holds LOCK, false
