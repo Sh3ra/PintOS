@@ -9,6 +9,7 @@
 
 #define DEBUG 0
 #define DEBUGYAHIA 0
+#define DEBUG_OMAR 0
 #define DEBUG2 0
 #define DEBUGEXEC 0
 #define DEBUGWAIT 0
@@ -150,6 +151,7 @@ struct thread
     struct list my_opened_files_list ;
     struct file * my_exec_file ;
     int blocking_parent;
+    int blocking_child ;
 #endif
 
     /* Owned by thread.c. */

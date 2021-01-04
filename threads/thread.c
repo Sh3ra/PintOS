@@ -69,7 +69,7 @@ static tid_t allocate_tid(void);
 
 int max(int a, int b);
 
-struct thread * get_process_with_specific_tid (tid_t tid);
+struct thread *get_process_with_specific_tid(tid_t tid);
 
 int get_priority_of_specific_thread(struct thread *t);
 
@@ -221,16 +221,17 @@ thread_create(const char *name, int priority,
     /* Allocate thread. */
     t = palloc_get_page(PAL_ZERO);
     if (t == NULL) {
-      struct child_process * cp = list_entry(list_begin(&thread_current()->my_children_list), struct child_process, my_child_elem);
-      if(DEBUGEXEC) printf("started putting child data in thread create Failure\n");
-      cp->tid = -1;
-      cp->exit_status = -1;
-      if(DEBUGEXEC) printf("ended putting child data in thread create Failure\n");
-      if(thread_current()->blocked_by_child ==1) {
-        thread_current()->blocked_by_child = 0;
-        sema_up(&thread_current()->waiting_for_child);
-      }
-      return TID_ERROR;
+        struct child_process *cp = list_entry(list_begin(&thread_current()->my_children_list), struct child_process,
+                                              my_child_elem);
+        if (DEBUGEXEC) printf("started putting child data in thread create Failure\n");
+        cp->tid = -1;
+        cp->exit_status = -1;
+        if (DEBUGEXEC) printf("ended putting child data in thread create Failure\n");
+        /*if (thread_current()->blocked_by_child == 1) {
+            thread_current()->blocked_by_child = 0;
+            sema_up(&thread_current()->waiting_for_child);
+        }*/
+        return TID_ERROR;
     }
 
 
@@ -239,11 +240,11 @@ thread_create(const char *name, int priority,
 
     tid = t->tid = allocate_tid();
 
-    if(list_size(&all_list)>0) {
-      if(DEBUGEXEC) printf("started setting child data for thread %d\n", t->tid);
-      t->cp = list_entry(list_begin(&thread_current()->my_children_list), struct child_process, my_child_elem);
-      t->cp->tid = tid;
-      if(DEBUGEXEC) printf("finished setting child data for thread %d child tid is %d\n", t->tid, tid);
+    if (list_size(&all_list) > 0) {
+        if (DEBUGEXEC) printf("started setting child data for thread %d\n", t->tid);
+        t->cp = list_entry(list_begin(&thread_current()->my_children_list), struct child_process, my_child_elem);
+        t->cp->tid = tid;
+        if (DEBUGEXEC) printf("finished setting child data for thread %d child tid is %d\n", t->tid, tid);
     }
     /* Stack frame for kernel_thread(). */
     kf = alloc_frame(t, sizeof *kf);
@@ -352,19 +353,17 @@ thread_tid(void) {
    returns to the caller. */
 void
 thread_exit(void) {
-    if(DEBUGEXIT)printf("current thread exiting is %d\n",thread_current()->tid );
+    if (DEBUGEXIT)printf("current thread exiting is %d\n", thread_current()->tid);
     ASSERT(!intr_context());
 
 #ifdef USERPROG
-    if(thread_current()->my_exec_file != NULL ) {
-      if(DEBUGEXIT) printf("closed execution file of thread %d\n",thread_current()->tid);
-      file_close(thread_current()->my_exec_file); //close file that was opened in process.c/load function to decrement deny-inode-write again
-    }
+
     struct thread * t = thread_current()->parent;
+    int tid = thread_current()->tid;
     if(DEBUGEXIT)printf("current thread exiting parent is %d\n",t->tid );
     process_exit ();
     if(DEBUGEXIT)printf("proces exit is done\n");
-    if(t != NULL &&  (t->blocked_by_child == 1)) {
+    if(t != NULL &&  t->blocked_by_child == 1 && t->blocking_child ==tid) {
       if(DEBUGEXIT)printf("semaphore going up in exit\n");
       t->blocked_by_child = 0;
       if(DEBUGEXIT)printf("semaphore value in exit before upping is %d\n", t->waiting_for_child.value);
@@ -717,18 +716,17 @@ allocate_tid(void) {
     return tid;
 }
 
-struct thread * get_process_with_specific_tid (tid_t tid){
-  struct thread * t;
-  for (struct list_elem *iter = list_begin(&all_list);
-       iter != list_end(&all_list);
-       iter = list_next(iter))
-  {
-    if(tid == list_entry(iter, struct thread, allelem)->tid) {
-      t = list_entry(iter, struct thread, allelem);
-      return t;
+struct thread *get_process_with_specific_tid(tid_t tid) {
+    struct thread *t;
+    for (struct list_elem *iter = list_begin(&all_list);
+         iter != list_end(&all_list);
+         iter = list_next(iter)) {
+        if (tid == list_entry(iter, struct thread, allelem)->tid) {
+            t = list_entry(iter, struct thread, allelem);
+            return t;
+        }
     }
-  }
-  return NULL;
+    return NULL;
 }
 
 /* Offset of `stack' member within `struct thread'.

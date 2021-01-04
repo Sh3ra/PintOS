@@ -262,12 +262,13 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   const uint8_t *buffer = buffer_;
   off_t bytes_written = 0;
   uint8_t *bounce = NULL;
-  //printf("inode %d from %s\n" , inode->deny_write_cnt,thread_current()->name);
+  //if(DEBUG_OMAR)printf("inode %d from %d\n" , inode->deny_write_cnt,thread_current()->tid);
   if (inode->deny_write_cnt)
     return 0;
 
   while (size > 0) 
     {
+      //if(DEBUG_OMAR)printf("inode %d from %d\n" , size,thread_current()->tid);
       /* Sector to write, starting byte offset within sector. */
       block_sector_t sector_idx = byte_to_sector (inode, offset);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
@@ -312,6 +313,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       size -= chunk_size;
       offset += chunk_size;
       bytes_written += chunk_size;
+      //if(DEBUG_OMAR)printf("inode again %d from %d\n" , size,thread_current()->tid);
     }
   free (bounce);
 

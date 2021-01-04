@@ -18,13 +18,15 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+
 #define MAX_CHILD_DEPTH 31
 static thread_func start_process NO_RETURN;
+
 static bool load(const char *cmdline, void (**eip)(void), void **esp);
 
 char *
 getName(const char *file_name) {
-    char *save_ptr , *fn_copy = palloc_get_page(0);
+    char *save_ptr, *fn_copy = palloc_get_page(0);
     strlcpy(fn_copy, file_name, PGSIZE);
     return strtok_r(fn_copy, " ", &save_ptr);
 }
@@ -35,45 +37,54 @@ getName(const char *file_name) {
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
 process_execute(const char *file_name) {
-    if(DEBUGEXEC) printf("size of all list elem %d\n", list_size(&all_list));
-    if(DEBUGEXEC) printf("start OF child process_execute parent process is %d\n", thread_current()->tid);
+    if (DEBUGEXEC) printf("size of all list elem %d\n", list_size(&all_list));
+    if (DEBUGEXEC) printf("start OF child process_execute parent process is %d\n", thread_current()->tid);
     tid_t tid;
-    char *fn_copy=malloc(strlen(file_name)+1);
-    char *usr_program=malloc(strlen(file_name)+1);
-    if(DEBUGEXEC) printf("fn copy and usr program malloced %d\n", thread_current()->tid);
-    char * save_ptr;
-    strlcpy(fn_copy,file_name,strlen(file_name)+1);
-    strlcpy(usr_program,file_name,strlen(file_name)+1);
-    if(fn_copy == NULL || usr_program == NULL)  {
-      if(DEBUGEXEC)printf("filenames are null\n");
-      return -1;
+    char *fn_copy = malloc(strlen(file_name) + 1);
+    char *usr_program = malloc(strlen(file_name) + 1);
+    if (DEBUGEXEC) printf("fn copy and usr program malloced %d\n", thread_current()->tid);
+    char *save_ptr;
+    strlcpy(fn_copy, file_name, strlen(file_name) + 1);
+    strlcpy(usr_program, file_name, strlen(file_name) + 1);
+    if (fn_copy == NULL || usr_program == NULL) {
+        if (DEBUGEXEC)printf("filenames are null\n");
+        return -1;
     }
-    if(DEBUGEXEC) printf("fn copy and usr program copied %d\n", thread_current()->tid);
-    usr_program = strtok_r(usr_program," ",&save_ptr);
-    if(DEBUGEXEC) printf("thread called process execute tid name is %s and tid is %d\n",thread_current()->name, thread_current()->tid );
+    if (DEBUGEXEC) printf("fn copy and usr program copied %d\n", thread_current()->tid);
+    usr_program = strtok_r(usr_program, " ", &save_ptr);
+    if (DEBUGEXEC)
+        printf("thread called process execute tid name is %s and tid is %d\n", thread_current()->name,
+               thread_current()->tid);
     struct child_process *cp = malloc(sizeof(struct child_process));
     ASSERT(cp != NULL);
     cp->exit_status = -100;
     cp->waitedNo = 0;
     list_push_front(&thread_current()->my_children_list, &cp->my_child_elem);
 
-    thread_current()->blocked_by_child = 1;
+    //thread_current()->blocked_by_child = 1;
     tid = thread_create(usr_program, PRI_DEFAULT, start_process, fn_copy);
-    if(DEBUGEXEC)printf("semaphore going down in process_execute\n");
-    sema_down(&thread_current()->waiting_for_child);
-    if(DEBUGEXEC)printf("ran away from semaphore in execute \n");
+    if (DEBUGEXEC)printf("semaphore going down in process_execute\n");
+    if(tid!=TID_ERROR) {
+        thread_current()->blocked_by_child = 1;
+        thread_current()->blocking_child = tid;
+        sema_down(&thread_current()->waiting_for_child);
+        thread_current()->blocked_by_child = -1;
+
+    }if (DEBUGEXEC)printf("ran away from semaphore in execute \n");
     free(usr_program);
     if (tid == TID_ERROR) {
         free(fn_copy);
     }
-    return cp->exit_status == -1? -1: tid;
+    return cp->exit_status == -1 ? -1 : tid;
 }
 
 /* A thread function that loads a user process and starts it
    running. */
 static void
 start_process(void *file_name_) {
-    if(DEBUGEXEC) printf("thread called start process tid name is %s and tid is %d\n",thread_current()->name, thread_current()->tid );
+    if (DEBUGEXEC)
+        printf("thread called start process tid name is %s and tid is %d\n", thread_current()->name,
+               thread_current()->tid);
     char *file_name = file_name_;
     struct intr_frame if_;
     bool success;
@@ -82,18 +93,18 @@ start_process(void *file_name_) {
     if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
     if_.cs = SEL_UCSEG;
     if_.eflags = FLAG_IF | FLAG_MBS;
-    if(DEBUGEXEC)printf("before load\n");
+    if (DEBUGEXEC)printf("before load\n");
     success = load(file_name, &if_.eip, &if_.esp);
-    if(DEBUGEXEC)printf("after load\n");
+    if (DEBUGEXEC)printf("after load\n");
     /* If load failed, quit. */
     free(file_name);
     if (!success || thread_current()->depth > MAX_CHILD_DEPTH) {
-        if(DEBUGEXEC) printf("exit called in start process\n");
+        if (DEBUGEXEC) printf("exit called in start process\n");
         ourExit(-1);
     } else {
-        if(DEBUGEXEC)printf("sema up called start process\n");
-        thread_current()->parent->blocked_by_child = 0;
-        sema_up(&thread_current()->parent->waiting_for_child);
+        if (DEBUGEXEC)printf("sema up called start process\n");
+            thread_current()->parent->blocked_by_child = 0;
+            sema_up(&thread_current()->parent->waiting_for_child);
     }
 
 
@@ -103,27 +114,26 @@ start_process(void *file_name_) {
        arguments on the stack in the form of a `struct intr_frame',
        we just point the stack pointer (%esp) to our stack frame
        and jump to it. */
-    if(DEBUGEXEC) printf("final line in start process\n");
+    if (DEBUGEXEC) printf("final line in start process\n");
     asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
     NOT_REACHED ();
 }
 
 
-int getStatusOfChild(tid_t tid, int check){
-  struct thread * t = thread_current();
-  for (struct list_elem *iterator = list_begin(&t->my_children_list);
-       iterator != list_end(&t->my_children_list);
-       iterator = list_next(iterator))
-  {
-    struct child_process * cp =list_entry(iterator, struct child_process, my_child_elem);
-    if(tid == cp->tid) {
-      int status = cp->exit_status;
-      if(check && cp->waitedNo) return -1;
-      cp->waitedNo++;
-      return status;
+int getStatusOfChild(tid_t tid, int check) {
+    struct thread *t = thread_current();
+    for (struct list_elem *iterator = list_begin(&t->my_children_list);
+         iterator != list_end(&t->my_children_list);
+         iterator = list_next(iterator)) {
+        struct child_process *cp = list_entry(iterator, struct child_process, my_child_elem);
+        if (tid == cp->tid) {
+            int status = cp->exit_status;
+            if (check && cp->waitedNo) return -1;
+            cp->waitedNo++;
+            return status;
+        }
     }
-  }
-  return -1;
+    return -1;
 }
 
 /* Waits for thread TID to die and returns its exit  .  If
@@ -136,53 +146,49 @@ int getStatusOfChild(tid_t tid, int check){
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-  process_wait(tid_t child_tid UNUSED) {
-    if(DEBUGWAIT) printf("in wait\n");
+process_wait(tid_t child_tid UNUSED) {
+    if (DEBUGWAIT) printf("in wait\n");
     int exit_status = getStatusOfChild(child_tid, 1);
-    if(DEBUGWAIT) printf("exit status when leaving first point is %d\n", exit_status);
-    if(exit_status != -100) return exit_status;
-    if(DEBUGWAIT) printf("exit status first not triggered\n");
-    struct thread * t = get_process_with_specific_tid(child_tid);
-    if(lock_held_by_current_thread(&open_lock)) {
-      if(DEBUGWAIT) printf("lock released in wait\n");
-      lock_release(&open_lock);
-    }
+    if (DEBUGWAIT) printf("exit status when leaving first point is %d\n", exit_status);
+    if (exit_status != -100) return exit_status;
+    if (DEBUGWAIT) printf("exit status first not triggered\n");
+    struct thread *t = get_process_with_specific_tid(child_tid);
+
     thread_current()->blocked_by_child = 1;
-    if(DEBUGWAIT)printf("semaphore going down in process wait\n");
+    thread_current()->blocking_child = child_tid;
+    if (lock_held_by_current_thread(&open_lock)) {
+        if (DEBUGWAIT) printf("lock released in wait\n");
+        lock_release(&open_lock);
+    }
+    if (DEBUGWAIT)printf("semaphore going down in process wait\n");
     sema_down(&thread_current()->waiting_for_child);
+    thread_current()->blocking_child = -1 ;
     lock_acquire(&open_lock);
-    if(DEBUGWAIT) printf("got out of semadown in wait\n");
+    if (DEBUGWAIT) printf("got out of semadown in wait\n");
     exit_status = getStatusOfChild(child_tid, 0);
-    if(DEBUGWAIT) printf("thread name is %s thread %d set his status to %d\n", thread_current()->name,child_tid, exit_status);
+    if (DEBUGWAIT)
+        printf("thread name is %s thread %d set his status to %d\n", thread_current()->name, child_tid, exit_status);
     return exit_status;
 }
 
-void free_all_children_close_all_files() {
-  struct thread * t = thread_current();
-
-  struct list * l = &thread_current()->my_opened_files_list;
-  /*for (struct list_elem * e = list_begin(l); e != list_end(l);) {
-      struct file * f = list_entry(e, struct file, file_elem);
-      e = list_next(e);
-      file_close(f);
-  }
-  */
-  l = &thread_current()->my_children_list;
-  for (struct list_elem * e = list_begin(l); e != list_end(l);) {
-      struct child_process * cp = list_entry(e, struct child_process, my_child_elem);
-      e = list_next(e);
-      free(cp);
-  }
+void free_all_children() {
+    struct list *l = &thread_current()->my_children_list;
+    for (struct list_elem *e = list_begin(l); e != list_end(l);) {
+        struct child_process *cp = list_entry(e, struct child_process, my_child_elem);
+        e = list_next(e);
+        free(cp);
+    }
 
 }
+
 /* Free the current process's resources. */
 void
 process_exit(void) {
     struct thread *cur = thread_current();
     uint32_t *pd;
-    if(DEBUGEXIT) printf("Before freeing children\n");
-    free_all_children_close_all_files();
-    if(DEBUGEXIT) printf("After freeing children\n");
+    if (DEBUGEXIT) printf("Before freeing children\n");
+    free_all_children();
+    if (DEBUGEXIT) printf("After freeing children\n");
     /* Destroy the current process's page directory and switch back
        to the kernel-only page directory. */
     pd = cur->pagedir;
@@ -195,8 +201,11 @@ process_exit(void) {
            directory, or our active page directory will be one
            that's been freed (and cleared). */
         cur->pagedir = NULL;
+        if (DEBUGEXIT) printf("curr->pagedir\n");
         pagedir_activate(NULL);
+        if (DEBUGEXIT) printf("activate\n");
         pagedir_destroy(pd);
+        if (DEBUGEXIT) printf("destroy\n");
     }
 }
 
@@ -304,17 +313,18 @@ load(const char *file_name, void (**eip)(void), void **esp) {
 
     /* Open executable file. */
     char *usr_program = NULL;
-    usr_program= getName(file_name);
+    usr_program = getName(file_name);
     if (usr_program == NULL) return false;
     //for(;;);
     file = filesys_open(usr_program);
     if (file == NULL) {
         printf("load: %s: open failed\n", file_name);
         goto done;
-    }else {
+    } else {
         file_deny_write(file);
-        t->my_exec_file = file ;
+        t->my_exec_file = file;
     }
+    if(DEBUG_OMAR)printf("load1\n");
     //printf("%d\n" ,file->deny_write);
     /* Read and verify executable header. */
     if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -324,9 +334,10 @@ load(const char *file_name, void (**eip)(void), void **esp) {
         || ehdr.e_version != 1
         || ehdr.e_phentsize != sizeof(struct Elf32_Phdr)
         || ehdr.e_phnum > 1024) {
-        printf("load: %s: error loading executable\n", file_name);
+        //printf("load: %s: error loading executable\n", file_name);
         goto done;
     }
+    if(DEBUG_OMAR)printf("load2\n");
 
     /* Read program headers. */
     file_ofs = ehdr.e_phoff;
@@ -379,6 +390,7 @@ load(const char *file_name, void (**eip)(void), void **esp) {
                 break;
         }
     }
+    if(DEBUG_OMAR)printf("load3\n");
 
     /* Set up stack. */
     if (!setup_stack(esp, file_name))
@@ -388,10 +400,13 @@ load(const char *file_name, void (**eip)(void), void **esp) {
     *eip = (void (*)(void)) ehdr.e_entry;
 
     success = true;
+    if(DEBUG_OMAR)printf("load4\n");
 
     done:
     /* We arrive here whether the load is successful or not. */
     //file_close(file); //moved this line to syscall.c/our_exit() to stop decrementing deny inode write counter until the excutable finishes
+    if(DEBUG_OMAR)printf("load5\n");
+
     return success;
 }
 
@@ -501,11 +516,11 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 int countWords(char str[]) {
     int nw = 0;
     int space = 1;
-    for(int i = 0; i < strlen(str); i++) {
+    for (int i = 0; i < strlen(str); i++) {
         //if enncounter space set boolean to one
-        if(str[i] == ' ') {
+        if (str[i] == ' ') {
             space = 1;
-        } else if(space == 1) {
+        } else if (space == 1) {
             //if a new space is encountered after a word increment the word count
             space = 0;
             nw++;
@@ -517,10 +532,10 @@ int countWords(char str[]) {
 bool parseCmd(char c[], char *cmd[]) {
     int idx = 0;
     char *save_ptr;
-    cmd[idx] = strtok_r(c, " ",&save_ptr);
+    cmd[idx] = strtok_r(c, " ", &save_ptr);
     while (cmd[idx] != NULL) {
         idx++;
-        cmd[idx] = strtok_r(NULL, " ",&save_ptr);
+        cmd[idx] = strtok_r(NULL, " ", &save_ptr);
     }
 }
 
@@ -536,51 +551,48 @@ setup_stack(void **esp, char *file_name) {
         success = install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
         if (success)
             *esp = PHYS_BASE;
-        else{
+        else {
             palloc_free_page(kpage);
             return success;
-       }
+        }
     }
-    if(!success) return false;
-    int cnt=countWords(file_name);
-    int * addresses = malloc( (cnt+1) * sizeof(int));
-    char ** args = malloc((cnt+1) * sizeof(char*));
+    int cnt = countWords(file_name);
+    int *addresses = malloc((cnt + 1) * sizeof(int));
+    char **args = malloc((cnt + 1) * sizeof(char *));
     char *fn_copy = palloc_get_page(0);
-    if(fn_copy == NULL) {
-      palloc_free_page(kpage);
-      return false;
+    if (fn_copy == NULL) {
+        palloc_free_page(kpage);
+        return false;
     }
     strlcpy(fn_copy, file_name, PGSIZE);
-    parseCmd(fn_copy,args);
-    for (int i = cnt; i >=0; i--)
-    {
-     if(args[i]!=NULL) {
-         *esp -= strlen(args[i])+1;
-         addresses[i]=(*esp);
-         memcpy(*esp, args[i], strlen(args[i])+1);
-     }
+    parseCmd(fn_copy, args);
+    for (int i = cnt; i >= 0; i--) {
+        if (args[i] != NULL) {
+            *esp -= strlen(args[i]) + 1;
+            addresses[i] = (*esp);
+            memcpy(*esp, args[i], strlen(args[i]) + 1);
+        }
     }
-    *esp-=4;
+    *esp -= 4;
     memset(*esp, 0, 4);
-    int word_align=(uintptr_t)(*esp)%(4*sizeof (char));
-    if(word_align >0) {
+    int word_align = (uintptr_t) (*esp) % (4 * sizeof(char));
+    if (word_align > 0) {
         *esp -= word_align;
         memset(*esp, 0, word_align);
     }
-    for (int i = cnt-1; i >=0; i--)
-    {
-     if(addresses[i]!=NULL) {
-         *esp -= sizeof(char*);
-         memcpy(*esp, &addresses[i], sizeof(char*));
-     }
+    for (int i = cnt - 1; i >= 0; i--) {
+        if (addresses[i] != NULL) {
+            *esp -= sizeof(char *);
+            memcpy(*esp, &addresses[i], sizeof(char *));
+        }
     }
-    int add=*esp;
-    *esp -= sizeof(char**);
-    memcpy(*esp, &add, sizeof(char**));
+    int add = *esp;
+    *esp -= sizeof(char **);
+    memcpy(*esp, &add, sizeof(char **));
 
-    *esp-=4;
+    *esp -= 4;
     memcpy(*esp, &cnt, 4);
-    *esp-=4;
+    *esp -= 4;
     memset(*esp, 0, 4);
 
     free(args);
