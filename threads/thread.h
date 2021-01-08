@@ -7,13 +7,13 @@
 #include "threads/real.h"
 #include "synch.h"
 
-#define DEBUG 0
-#define DEBUGYAHIA 0
-#define DEBUG_OMAR 0
-#define DEBUG2 0
-#define DEBUGEXEC 0
-#define DEBUGWAIT 0
-#define DEBUGEXIT 0
+#define DEBUG 1
+#define DEBUGYAHIA 1
+#define DEBUG_OMAR 1
+#define DEBUG2 1
+#define DEBUGEXEC 1
+#define DEBUGWAIT 1
+#define DEBUGEXIT 1
 #define MAX_DEPTH 10
 
 /* Initial thread, the thread running init.c:main().*/
@@ -144,16 +144,12 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    int depth;
-    int blocked_by_child;
-    bool exec_success;
+    bool exec_success;                  /* checker for child execution success */
     struct semaphore waiting_for_child;
     struct semaphore exec_sema;
     struct thread *parent;
     struct list my_opened_files_list ;
     struct file * my_exec_file ;
-    int blocking_parent;
-    int blocking_child ;
 #endif
 
     /* Owned by thread.c. */
@@ -161,12 +157,13 @@ struct thread
   };
 
 
+  /* struct to hold child data*/
   struct child_process {
-      tid_t tid;
-      int exit_status;
-      struct list_elem my_child_elem;
-      int waitedNo;
-      struct semaphore sema;
+      tid_t tid;                        /* tid of child threads */
+      int exit_status;                  /* exit status which is set by child process when it exits */
+      struct list_elem my_child_elem;   /* list elem used to iter in list children in parent thread */
+      struct semaphore sema;            /* semaphore for parent to wait on child */
+      int waitedNo;                     /* checker if parent have waited on child before*/
   };
 
 /* If false (default), use round-robin scheduler.

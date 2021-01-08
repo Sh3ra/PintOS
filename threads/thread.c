@@ -220,11 +220,9 @@ thread_create(const char *name, int priority,
 
     /* Allocate thread. */
     t = palloc_get_page(PAL_ZERO);
-    if(DEBUGEXEC) printf("Thread checker before \n");
     if (t == NULL) {
         return TID_ERROR;
     }
-    if(DEBUGEXEC) printf("Thread checker After \n");
 
     /* Initialize thread. */
     init_thread(t, name, priority, thread_current()->recent_cpu.val, thread_current()->nice);
@@ -345,7 +343,6 @@ thread_tid(void) {
    returns to the caller. */
 void
 thread_exit(void) {
-    if (DEBUGEXIT)printf("current thread exiting is %d\n", thread_current()->tid);
     ASSERT(!intr_context());
 
 #ifdef USERPROG
@@ -357,7 +354,6 @@ thread_exit(void) {
        when it calls thread_schedule_tail(). */
     intr_disable();
     list_remove(&thread_current()->allelem);
-    if(DEBUGEXIT) printf("Thread getting destroyed %d\n",  thread_current()->tid);
     thread_current()->status = THREAD_DYING;
     schedule();
     NOT_REACHED();
@@ -570,14 +566,12 @@ init_thread(struct thread *t, const char *name, int priority, int recent_cpu_val
     list_init(&t->my_children_list);
 
 #ifdef USERPROG
-    t->blocked_by_child = 0;
     sema_init(&t->exec_sema, 0);
     sema_init(&t->waiting_for_child, 0);
     list_init(&t->my_opened_files_list);
     t->fd = 1;
     if(list_size(&all_list)>0) {
       t->parent = thread_current();
-      t->depth = t->parent->depth + 1;
     }
     else t->parent=NULL;
 #endif
@@ -697,19 +691,6 @@ allocate_tid(void) {
     lock_release(&tid_lock);
 
     return tid;
-}
-
-struct thread *get_process_with_specific_tid(tid_t tid) {
-    struct thread *t;
-    for (struct list_elem *iter = list_begin(&all_list);
-         iter != list_end(&all_list);
-         iter = list_next(iter)) {
-        if (tid == list_entry(iter, struct thread, allelem)->tid) {
-            t = list_entry(iter, struct thread, allelem);
-            return t;
-        }
-    }
-    return NULL;
 }
 
 /* Offset of `stack' member within `struct thread'.

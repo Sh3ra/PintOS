@@ -34,8 +34,6 @@ static int remove_file(char *curr_name);
 
 static void seek(int fd, unsigned position);
 
-static int wait(tid_t pid);
-
 static tid_t execute(char *cmd_line);
 
 static uint32_t tell(int fd);
@@ -69,7 +67,6 @@ bool is_valid_ptr(const void *usr_ptr)
 /* Exits the process with -1 status */
 static void kill()
 {
-if(DEBUG2) printf("exit called in kill\n");
     ourExit(-1);
 }
 static uint32_t *esp;
@@ -83,41 +80,29 @@ syscall_handler(struct intr_frame *f UNUSED)
     {
         kill();
     }
-    if(DEBUGYAHIA) printf("trying to acquire lock\n");
-    if(DEBUGYAHIA)printf("syscall is %d\n", *(int *)f->esp);
     ASSERT(&open_lock != NULL);
     lock_acquire(&open_lock);
-    if(DEBUG_OMAR)printf("%d acquired " , thread_current()->tid);
-    if(DEBUGYAHIA) printf("acquired lock\n");
     switch (*(int *)f->esp)
     {
     case SYS_HALT:
     {
-    if(DEBUG)  printf("halt\n");
         //printf("halt\n" );
         shutdown_power_off();
     }
     case SYS_EXIT:
     {
-        if(DEBUG_OMAR)printf("exit\n" );
-        if(DEBUG)printf("exit\n");
         int status = *((int *)f->esp + 1);
-        if(DEBUG2) printf("exit called in exit\n");
         ourExit(status);
         break;
     }
     case SYS_EXEC:
     {
-        if(DEBUG_OMAR)printf("exec\n" );
-        if(DEBUG)printf("exec\n");
         char *cmd_line = (char *)(*((int *)f->esp + 1));
         f->eax = execute(cmd_line);
         break;
     }
     case SYS_WAIT:
     {
-        if(DEBUG_OMAR)printf("wait\n" );
-        if(DEBUG)printf("wait\n");
         tid_t child_pid = (tid_t *)(*((int *)f->esp + 1));
         lock_release(&open_lock);
         f->eax = process_wait(child_pid);
@@ -125,12 +110,9 @@ syscall_handler(struct intr_frame *f UNUSED)
     }
     case SYS_CREATE:
     {
-        if(DEBUG_OMAR)printf("create\n" );
-        if(DEBUG)printf("create\n");
         char *curr_name = (char *)(*((int *)f->esp + 1));
         if (curr_name == NULL)
         {
-        if(DEBUG2) printf("exit called in create\n");
             ourExit(-1);
         }
         off_t initial_size = (off_t *)(*((int *)f->esp + 2));
@@ -139,12 +121,9 @@ syscall_handler(struct intr_frame *f UNUSED)
     }
     case SYS_REMOVE:
     {
-        if(DEBUG_OMAR)printf("remove\n" );
-        if(DEBUG)printf("remove\n");
         char *curr_name = (char *)(*((int *)f->esp + 1));
         if (curr_name == NULL)
         {
-        if(DEBUG2) printf("exit called in remove\n");
             ourExit(-1);
         }
 
@@ -153,24 +132,18 @@ syscall_handler(struct intr_frame *f UNUSED)
     }
     case SYS_OPEN:
     {
-        if(DEBUG_OMAR)printf("open\n" );
-        if(DEBUG)printf("open\n");
         char *curr_name = (char *)(*((int *)f->esp + 1));
         f->eax = open_file(curr_name);
         break;
     }
     case SYS_FILESIZE:
     {
-        if(DEBUG_OMAR)printf("filesize\n" );
-        if(DEBUG)printf("filesize\n");
         int fd = *((int *)f->esp + 1);
         f->eax = filesize(fd);
         break;
     }
     case SYS_READ:
     {
-        if(DEBUG_OMAR)printf("read\n" );
-        if(DEBUG)printf("read\n");
         int fd = *((int *)f->esp + 1);
         void *buffer = (void *)(*((int *)f->esp + 2));
         unsigned size = *((unsigned *)f->esp + 3);
@@ -182,8 +155,6 @@ syscall_handler(struct intr_frame *f UNUSED)
     }
     case SYS_WRITE:
     {
-        if(DEBUG_OMAR)printf("write\n" );
-        if(DEBUG)printf("write\n");
         int fd = *((int *)f->esp + 1);
         void *buffer = (void *)(*((int *)f->esp + 2));
         unsigned size = *((unsigned *)f->esp + 3);
@@ -194,8 +165,6 @@ syscall_handler(struct intr_frame *f UNUSED)
     }
     case SYS_SEEK:
     {
-        if(DEBUG_OMAR)printf("seek\n" );
-        if(DEBUG)printf("seek\n");
         int fd = *((int *)f->esp + 1);
         unsigned position = *((unsigned *)f->esp + 2);
         seek(fd, position);
@@ -203,28 +172,21 @@ syscall_handler(struct intr_frame *f UNUSED)
     }
     case SYS_TELL:
     {
-        if(DEBUG_OMAR)printf("tell\n" );
-        if(DEBUG)printf("tell\n");
         int fd = *((int *)f->esp + 1);
         f->eax = tell(fd);
         break;
     }
     case SYS_CLOSE:
     {
-        if(DEBUG_OMAR)printf("close\n" );
-        if(DEBUG)printf("close\n");
         int fd = *((int *)f->esp + 1);
         close_file(fd);
         break;
     }
     default:
     {
-        if(DEBUG_OMAR)printf("default\n");
         kill();
     }
     }
-    if(DEBUGYAHIA) printf("released lock lock\n");
-    if(DEBUG_OMAR)printf("%d released\n" , thread_current()->tid);
     if(lock_held_by_current_thread(&open_lock))
     lock_release(&open_lock);
 }
@@ -279,7 +241,6 @@ static int open_file(char *curr_name)
     if (!is_valid_ptr(curr_name))
         kill();
     int res = -1;
-    //lock_acquire(&filesys_lock);
     struct file *curr_file = filesys_open(curr_name);
     if (curr_file != NULL)
     {
@@ -288,8 +249,6 @@ static int open_file(char *curr_name)
         curr_file->fd = thread_current()->fd;
         res = thread_current()->fd;
     }
-
-   // lock_release(&filesys_lock);
     return res;
 }
 void
@@ -304,37 +263,26 @@ close_all_files(){
 }
 void ourExit(int status)
 {
-    if(DEBUGEXIT) printf("thread calling exit is %d with status %d\n",thread_current()->tid  , status);
     printf("%s: exit(%d)\n", thread_current()->name, status);
     struct child_process * cp = thread_current()->cp;
     thread_current()->cp->exit_status = status;
     sema_up(&thread_current()->cp->sema);
-    if(DEBUGEXIT) printf("thread %s %d set his status to %d\n", thread_current()->name, thread_current()->tid, status);
     if(thread_current()->my_exec_file != NULL ) {
         file_close(thread_current()->my_exec_file); //close file that was opened in process.c/load function to decrement deny-inode-write again
-        if(DEBUGEXIT) printf("closed execution file of thread %d\n",thread_current()->tid);
     }
-    if (DEBUGEXIT) printf("Before closing all files\n");
     close_all_files();
-    if (DEBUGEXIT) printf("after closing all files\n");
     if(lock_held_by_current_thread(&open_lock)) {
-      if(DEBUGEXIT) printf("released lock exit\n");
-      if(DEBUG_OMAR)printf("%d released from exit\n", thread_current()->tid);
-      lock_release(&open_lock);
+          lock_release(&open_lock);
     }
-    if(DEBUGEXIT)printf("%d called exit\n",thread_current()->tid);
     thread_exit();
 }
 
 static uint32_t write(int fd, void *buffer, unsigned int size) {
     unsigned buffer_size = size;
     void *buffer_tmp = buffer;
-    if(DEBUG_OMAR)printf("where1\n" );
-
     /* check the user memory pointing by buffer are valid */
     while (buffer_tmp != NULL)
     {
-        //printf("hey");
         if (!is_valid_ptr(buffer_tmp)) {
             kill();
         }
@@ -358,15 +306,12 @@ static uint32_t write(int fd, void *buffer, unsigned int size) {
             buffer_size = 0;
         }
     }
-    if(DEBUG_OMAR)printf("where2\n" );
     int res = 0;
     //lock_acquire(&filesys_lock);
     //printf("horray");
     if (fd == 1)
     {
-        if(DEBUG_OMAR)printf("where3\n" );
         putbuf(buffer, size);
-        if(DEBUG_OMAR)printf("where5\n" );
         res = size;
     }
     else if (fd == 0)
@@ -377,16 +322,12 @@ static uint32_t write(int fd, void *buffer, unsigned int size) {
 
     else
     {
-        if(DEBUG_OMAR)printf("where6\n" );
         struct file *file = get_file(fd);
-        if(DEBUG_OMAR)printf("where7\n" );
         if (file != NULL) {
-            if(DEBUG_OMAR)printf("where8\n" );
             //sema_down(&write_syscall_sema);
             //printf("file %d\n" ,file->deny_write);
 
             res = file_write(file, buffer, size);
-            if(DEBUG_OMAR)printf("where9\n" );
             //printf("%d\n",res);
             //sema_up(&write_syscall_sema);
         }
@@ -450,7 +391,6 @@ static uint32_t read(int fd, void *buffer, unsigned size)
         }
         }
 
-    if(DEBUG2) printf("exit called in read\n");
     ourExit(-1);
     return -1;
 }

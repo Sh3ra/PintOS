@@ -55,9 +55,6 @@ process_execute(const char *file_name) {
    running. */
 static void
 start_process(void *file_name_) {
-    if (DEBUGEXEC)
-        printf("thread called start process tid name is %s and tid is %d\n", thread_current()->name,
-               thread_current()->tid);
     char *file_name = file_name_;
     struct intr_frame if_;
     bool success;
@@ -66,9 +63,7 @@ start_process(void *file_name_) {
     if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
     if_.cs = SEL_UCSEG;
     if_.eflags = FLAG_IF | FLAG_MBS;
-    if (DEBUGEXEC)printf("before load\n");
     success = load(file_name, &if_.eip, &if_.esp);
-    if (DEBUGEXEC)printf("after load\n");
     free(file_name);
 
     if(success) {
@@ -89,27 +84,10 @@ start_process(void *file_name_) {
        arguments on the stack in the form of a `struct intr_frame',
        we just point the stack pointer (%esp) to our stack frame
        and jump to it. */
-    if (DEBUGEXEC) printf("final line in start process\n");
     asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
     NOT_REACHED ();
 }
 
-
-int getStatusOfChild(tid_t tid, int check) {
-    struct thread *t = thread_current();
-    for (struct list_elem *iterator = list_begin(&t->my_children_list);
-         iterator != list_end(&t->my_children_list);
-         iterator = list_next(iterator)) {
-        struct child_process *cp = list_entry(iterator, struct child_process, my_child_elem);
-        if (tid == cp->tid) {
-            int status = cp->exit_status;
-            if (check && cp->waitedNo) return -1;
-            cp->waitedNo++;
-            return status;
-        }
-    }
-    return -1;
-}
 
 /* Waits for thread TID to die and returns its exit  .  If
    it was terminated by the kernel (i.e. killed due to an
@@ -117,9 +95,7 @@ int getStatusOfChild(tid_t tid, int check) {
    child of the calling process, or if process_wait() has already
    been successfully called for the given TID, returns -1
    immediately, without waiting.
-
-   This function will be implemented in problem 2-2.  For now, it
-   does nothing. */
+ */
 int
 process_wait(tid_t child_tid UNUSED) {
     struct thread *t = thread_current();
@@ -146,6 +122,8 @@ process_wait(tid_t child_tid UNUSED) {
     return exit_status;
 }
 
+
+/* Free all children data in parent thread*/
 void free_all_children() {
     struct list *l = &thread_current()->my_children_list;
     for (struct list_elem *e = list_begin(l); e != list_end(l);) {
@@ -173,11 +151,8 @@ process_exit(void) {
            directory, or our active page directory will be one
            that's been freed (and cleared). */
         cur->pagedir = NULL;
-        if (DEBUGEXIT) printf("curr->pagedir\n");
         pagedir_activate(NULL);
-        if (DEBUGEXIT) printf("activate\n");
         pagedir_destroy(pd);
-        if (DEBUGEXIT) printf("destroy\n");
     }
 }
 
@@ -289,7 +264,6 @@ load(const char *file_name, void (**eip)(void), void **esp) {
     if (usr_program == NULL) return false;
     char * save_ptr;
     usr_program = strtok_r(usr_program, " ", &save_ptr);
-    //for(;;);
     file = filesys_open(usr_program);
     if (file == NULL) {
         printf("load: %s: open failed\n", file_name);
@@ -298,8 +272,6 @@ load(const char *file_name, void (**eip)(void), void **esp) {
         file_deny_write(file);
         t->my_exec_file = file;
     }
-    if(DEBUG_OMAR)printf("load1\n");
-    //printf("%d\n" ,file->deny_write);
     /* Read and verify executable header. */
     if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr
         || memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -308,10 +280,8 @@ load(const char *file_name, void (**eip)(void), void **esp) {
         || ehdr.e_version != 1
         || ehdr.e_phentsize != sizeof(struct Elf32_Phdr)
         || ehdr.e_phnum > 1024) {
-        //printf("load: %s: error loading executable\n", file_name);
         goto done;
     }
-    if(DEBUG_OMAR)printf("load2\n");
 
     /* Read program headers. */
     file_ofs = ehdr.e_phoff;
@@ -364,7 +334,6 @@ load(const char *file_name, void (**eip)(void), void **esp) {
                 break;
         }
     }
-    if(DEBUG_OMAR)printf("load3\n");
 
     /* Set up stack. */
     if (!setup_stack(esp, file_name))
@@ -374,12 +343,10 @@ load(const char *file_name, void (**eip)(void), void **esp) {
     *eip = (void (*)(void)) ehdr.e_entry;
 
     success = true;
-    if(DEBUG_OMAR)printf("load4\n");
 
     done:
     /* We arrive here whether the load is successful or not. */
     //file_close(file); //moved this line to syscall.c/our_exit() to stop decrementing deny inode write counter until the excutable finishes
-    if(DEBUG_OMAR)printf("load5\n");
 
     return success;
 }

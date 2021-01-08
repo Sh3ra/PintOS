@@ -89,7 +89,6 @@ kill(struct intr_frame *f)
       printf("%s: dying due to interrupt %#04x (%s).\n",
              thread_name(), f->vec_no, intr_name(f->vec_no));
       intr_dump_frame(f);
-      if(DEBUG2) printf("exit called in exception\n");
       ourExit(-1);
 
    case SEL_KCSEG:
@@ -105,7 +104,6 @@ kill(struct intr_frame *f)
          kernel. */
       printf("Interrupt %#04x (%s) in unknown segment %04x\n",
              f->vec_no, intr_name(f->vec_no), f->cs);
-      if(DEBUG2) printf("exit called in exception\n");
       ourExit(-1);
    }
 }
@@ -152,17 +150,14 @@ page_fault(struct intr_frame *f)
    user = (f->error_code & PF_U) != 0;
 
    if (!not_present) {
-   if(DEBUG2) printf("exit called in exception\n");
      ourExit(-1);
    }
 
    if (fault_addr == NULL || !not_present || !is_user_vaddr(fault_addr)) {
-   if(DEBUG2) printf("exit called in exception\n");
      ourExit(-1);
    }
      struct thread *cur = thread_current();
    if (!pagedir_get_page(cur->pagedir, fault_addr)) {
-   if(DEBUG2) printf("exit called in exception\n");
      ourExit(-1);
    }
     /* To implement virtual memory, delete the rest of the function
